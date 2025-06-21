@@ -8,7 +8,7 @@
     <form action="/user/login" method="post">
         账号：<input type="text" name="username"><br/>
         密码:<input type="password" name="password"><br/>
-        <!--加入 hidden 的隐藏域，value 的值使用 thymeleaf 的语法确定-->
+        验证码：<input type="text" name="captcha"><img src="/api/captcha"><br/>
         <input type="hidden" name="_csrf" th:value="${_csrf.token}">
         <input type="submit" value="Login">
     </form>

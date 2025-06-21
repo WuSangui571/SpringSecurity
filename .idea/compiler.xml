@@ -9,7 +9,7 @@
         <module name="springsecurity-02-db-login" />
         <module name="springsecurity-01-base" />
       </profile>
-      <profile name="Annotation profile for springsecurity-03-login-page" enabled="true">
+      <profile name="Annotation profile for springsecurity-04-captcha-login" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
@@ -17,6 +17,7 @@
           <entry name="$PROJECT_DIR$/../../../04-ProgramFiles/apache-maven-3.9.9/mvn_resp/org/projectlombok/lombok/1.18.38/lombok-1.18.38.jar" />
         </processorPath>
         <module name="springsecurity-03-login-page" />
+        <module name="springsecurity-04-captcha-login" />
       </profile>
     </annotationProcessing>
   </component>
@@ -25,6 +26,7 @@
       <module name="springsecurity-01-base" options="-parameters" />
       <module name="springsecurity-02-db-login" options="-parameters" />
       <module name="springsecurity-03-login-page" options="-parameters" />
+      <module name="springsecurity-04-captcha-login" options="-parameters" />
     </option>
   </component>
 </project>

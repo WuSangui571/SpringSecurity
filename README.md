@@ -89,7 +89,7 @@ spring:
 
 + Controller 部分
 
-  创建 uri为 "/hello" 的一个欢迎界面方法即可。
+  创建 uri 为 "/hello" 的一个欢迎界面方法即可。
 
   通过上一章的讲解可以得出，若用户已登录，会访问 http://localhost:8080/hello 的欢迎界面。若用户未登录，会访问 http://localhost:8080/login 的自动登录界面。
 
@@ -154,4 +154,158 @@ Given that there is no default password encoder configured, each password must h
 
 ### 第 3 章 SpringSecurity 使用自定义登录页
 
-这章的程序会在第 2 章程序的基础上进行修改，因为大致程序都相同，只是把登录页从它框架自动生成的，换成是自己的，
+这一章的程序会在第 2 章程序的基础上进行修改，因为大致程序都相同，只是把登录页从它框架自动生成的，换成是自己的登录页。
+
+我们选择使用 Thymeleaf 模板的前端登录页。
+
+我们只需要在配置类中配置 SecurityFilterChain 这个类，就可以将登录页换成自己的登录页，比如：
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain() {
+	return new DefaultSecurityFilterChain(参数...);
+}
+```
+
+但我们一般不会这么 new 一个对象的，而是采用方法参数注入 HttpSecurity 的形式：
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+	return httpSecurity
+                // 配置自己的登录页
+                .formLogin((formLogin) ->{
+                    // 定制登录页 (Thymeleaf 页面)
+                    formLogin.loginPage("/toLogin");
+                })
+        
+        		.build();
+}
+```
+
+暂时先假设我们的登录页路径为 "/toLogin"。
+
+此时我们需要创建一个自定义登录页面，并将其绑定到这个 "/toLogin" 路径。其中自定义页面如下：（我们先设置 "/user/login" 为表单提交路径）
+
+```html
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Login Page</title>
+</head>
+<body>
+    <form action="/user/login" method="post">
+        账号：<input type="text" name="username"><br/>
+        密码：<input type="password" name="password"><br/>
+        <input type="submit" value="Login">
+    </form>
+</body>
+</html>
+```
+
+接着再在 Controller 中将这个页面绑定我们的路径：（注意我们的 Controller 类上的注解不能是 @RestController，只能是 @Controller，因为这里返回的是模板页面 ）
+
+```java
+@RequestMapping(value = "/toLogin",method = RequestMethod.GET)
+public String toLogin(){
+    return "login";
+}
+```
+
+至此，看起来我们的程序已经完备了，我的逻辑是：访问 http://localhost:8080/hello ，若用户未登录，会自动 http://localhost:8080/toLogin 的登录界面，若用户已登录，会继续访问 http://localhost:8080/hello 的欢迎界面。于是我开始测试，发现我未登录，也能访问到欢迎页面，断点调试程序发现框架根本就没有拦截，这是怎么回事？
+
+原因是当你配置了 SecurityFilterChain 这个类之后，SpringSecurity 框架的某些行为就弄丢了（失效了），此时你需要加回来
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+	return httpSecurity
+                .formLogin((formLogin) ->{
+                    formLogin.loginPage("/toLogin");
+                })
+        
+        		// 把所有接口都会进行登录状态检查的默认行为，再加回来
+        		.authorizeHttpRequests((authorizeHttpRequests) -> {
+        			// 任何对后端接口的请求，都需要认证（登录）后才能访问
+        			authorizeHttpRequests.anyRequest().authenticated();
+        		}
+                                       
+        		.build();
+}
+```
+
+至此，看起来我们的程序已经完备了，于是我开始测试，访问 http://localhost:8080/hello，发现确实可以跳转到 http://localhost:8080/toLogin 页面，但是网页显示**该网站无法正常运作 localhost 将您重定向的次数过多**，哦，我才发现， 因为我任何请求我都选择需要认证，导致 http://localhost:8080/toLogin 这个请求他也需要认证，这是不合理的，我需要将登录页面排除在外。于是就有了：
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+	return httpSecurity
+                .formLogin((formLogin) ->{
+                    formLogin.loginPage("/toLogin");
+                })
+        
+        		.authorizeHttpRequests((authorizeHttpRequests) -> {
+        			authorizeHttpRequests
+                            // 特殊情况设置，"/toLogin"页面允许访问
+                            .requestMatchers("/toLogin").permitAll()
+                            .anyRequest().authenticated();
+        		}
+                                       
+        		.build();
+}
+```
+
+至此，看起来我们的程序已经完备了，于是我开始测试，访问 http://localhost:8080/hello，发现确实可以跳转到 http://localhost:8080/toLogin 页面，这个页面页正常渲染显示了，但是呢，我输入正确的账号密码，点击登录按钮，并没有正确跳转登录成功，而是没有任何反应。这是怎么回事？
+
+观察原本自动生成的 /login 页面，它的表单提交中，还会提交一个 hidden 隐藏域，于是我们也给他加进来
+
+```html
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Login Page</title>
+</head>
+<body>
+    <form action="/user/login" method="post">
+        账号：<input type="text" name="username"><br/>
+        密码:<input type="password" name="password"><br/>
+        <!--加入 hidden 的隐藏域，value 的值使用 thymeleaf 的语法确定-->
+        <input type="hidden" name="_csrf" th:value="${_csrf.token}">
+        <input type="submit" value="Login">
+    </form>
+</body>
+</html>
+```
+
+这个隐藏域的值，SpringSecurity 框架会自动生成，我们只需要将他显示出来就行了，把他传入表单提交中就好，框架会通过 CsrfFilter 这个类，自动解析这个 token 是否正确。
+
+至此，看起来我们的程序已经完备了，于是我开始测试，发现还是原来的问题，还是登录不上。这怎么解决？
+
+原来还需要给 SpringSecurity 框架设置一个前端 form 表单提交的的一个路径，就是之前我们在前端写的 "/user/login" 路径：
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+	return httpSecurity
+                .formLogin((formLogin) ->{
+                    formLogin
+                        	// 设置一个前端 form 表单提交的的一个路径
+                            .loginProcessingUrl("/user/login")
+                            .loginPage("/toLogin");
+                })
+        
+        		.authorizeHttpRequests((authorizeHttpRequests) -> {
+        			authorizeHttpRequests
+                            .requestMatchers("/toLogin").permitAll()
+                            .anyRequest().authenticated();
+        		}
+                                       
+        		.build();
+}
+```
+
+### 第 4 章 SpingSecurity 使用验证码登录
+
+这一章的程序会在第 3 章程序的基础上进行修改，因为大致程序都相同，只是在登录的时候使用验证码进行登录。
