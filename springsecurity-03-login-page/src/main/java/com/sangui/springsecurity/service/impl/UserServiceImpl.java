@@ -1,9 +1,9 @@
-package com.sangui.springsecurity02dblogin.service.impl;
+package com.sangui.springsecurity.service.impl;
 
 
-import com.sangui.springsecurity02dblogin.mapper.TUserMapper;
-import com.sangui.springsecurity02dblogin.model.TUser;
-import com.sangui.springsecurity02dblogin.service.UserService;
+import com.sangui.springsecurity.mapper.TUserMapper;
+import com.sangui.springsecurity.model.TUser;
+import com.sangui.springsecurity.service.UserService;
 import jakarta.annotation.Resource;
 import org.springframework.security.core.authority.AuthorityUtils;
 import org.springframework.security.core.userdetails.User;
@@ -44,7 +44,8 @@ public class UserServiceImpl implements UserService {
                 .password(tUser.getLoginPwd())
                 // 权限先设置为空
                 .authorities(AuthorityUtils.NO_AUTHORITIES)
-                //.credentialsExpired(true)
+                // 设置账户失效
+                // .credentialsExpired(true)
                 .build();
 
         return userDetails;

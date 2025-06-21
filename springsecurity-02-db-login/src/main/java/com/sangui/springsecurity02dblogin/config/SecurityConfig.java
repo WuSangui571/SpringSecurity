@@ -15,7 +15,7 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 @Configuration
 public class SecurityConfig {
     // 将 SpringSecurity 中的 BCrypt 加密器引入我们的 IoC 容器之中
-    // 相当于 xml文件中的：<bean id="passwordEncoder" class="org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder"/>
+    // 相当于 xml 文件中的：<bean id="passwordEncoder" class="org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder"/>
     @Bean
     public PasswordEncoder passwordEncoder() {
         return new BCryptPasswordEncoder();

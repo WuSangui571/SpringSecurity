@@ -1,4 +1,4 @@
-package com.sangui.springsecurity02dblogin.service;
+package com.sangui.springsecurity.service;
 
 
 import org.springframework.security.core.userdetails.UserDetailsService;
