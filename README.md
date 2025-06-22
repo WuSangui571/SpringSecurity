@@ -308,4 +308,275 @@ public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws
 
 ### 第 4 章 SpingSecurity 使用验证码登录
 
+该章节程序要求：访问这个 web 程序时，要先通过前端的自定义页面输入用户名，密码，和匹配随机生成的验证码，才能登录访问本系统，
+
 这一章的程序会在第 3 章程序的基础上进行修改，因为大致程序都相同，只是在登录的时候使用验证码进行登录。
+
+首先要先更改前端页面：
+
+```html
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Login Page</title>
+</head>
+<body>
+    <form action="/user/login" method="post">
+        账号：<input type="text" name="username"><br/>
+        密码:<input type="password" name="password"><br/>
+        <!--前端添加验证码-->
+        验证码：<input type="text" name="captcha"><img src="/common/captcha"><br/>
+        <input type="hidden" name="_csrf" th:value="${_csrf.token}">
+        <input type="submit" value="Login">
+    </form>
+</body>
+</html>
+```
+
+前端随机生成的验证码图片的路径先定为： `/common/captcha` 。
+
+由于自己写随机验证码图片过于困难和麻烦，这里通过使用 `hutool` 的依赖，靠它生成验证码。该工具建议仅在学习阶段使用，不建议在实际部署中使用（因为收购该工具的公司的风评不好，该公司近期更深陷于旗下另一开源项目 Alist 隐私困扰）：
+
+```xml
+<!-- https://mvnrepository.com/artifact/cn.hutool/hutool-captcha -->
+<dependency>
+    <groupId>cn.hutool</groupId>
+    <artifactId>hutool-captcha</artifactId>
+    <version>5.8.38</version>
+</dependency>
+```
+
+接着写这个验证码的 Controller 类的代码，代码很简单，稍加看源码就能了解（源码的注释是中文）。
+
+主要流程步骤如下：
+
+1. 设置该请求类型（图像）
+2. 生成图片
+3. 保存验证码字符串
+4. 将图片显示到前端上
+
+```java
+@RestController
+public class CaptchaController {
+    // 这是个生成验证码的 Controller，不需要跳转页面，所以返回值是 void，就是把生成的图片以流的方式显示在前端浏览器上
+    @RequestMapping(value = "/common/captcha",method = RequestMethod.GET)
+    public void generateCaptcha(HttpServletRequest request, HttpServletResponse response) throws IOException {
+        // 1.设置该请求相应的类型是图像
+        response.setContentType("image/gif");
+
+        // 2. 生成图片
+        // 生成默认的图像（即既带字母，又带数字）90 × 30，验证码长度为 4，干扰圆圈 50个，字体大小为 1 倍的图像高度
+        // ICaptcha captcha = CaptchaUtil.createCircleCaptcha(90, 30, 4, 50,1);
+
+        // 2. 生成图片
+        // 生成自定义的图像，90 × 30，验证码长度为 4，干扰圆圈 50个
+        //ICaptcha captcha = CaptchaUtil.createCircleCaptcha(90, 30, new MyCodeGenerate(), 50);
+
+        // 2. 生成图片
+        // 生成 GIF 动态图片
+        ICaptcha captcha = CaptchaUtil.createGifCaptcha(90, 30, new MyCodeGenerate(), 50);
+
+        // 3. 把图片里面的验证码字符串在后端保存起来，因为后续前端提交的验证码需要验证
+        // 选择把后端生成的验证码放到 session 中
+        request.getSession().setAttribute("captcha", captcha.getCode());
+        System.out.println(captcha.getCode());
+
+        // 4.把生成的验证码图片以 I/O 流的方式显示到前端浏览器上
+        captcha.write(response.getOutputStream());
+    }
+}
+```
+
+值得注意的是，这里可以自定义验证码生成规则，只需要按照 hutool 的规范创建它的一个自定义类就好，我定义的规则是生成的验证码是四位纯数字，代码如下：
+
+```java
+public class MyCodeGenerate implements CodeGenerator {
+    private static final Random RANDOM = new Random();
+    private static final int CODE_LENGTH = 4;
+    private static final char[] NUMBER_POOL = "0123456789".toCharArray();
+
+    @Override
+    public String generate() {
+        StringBuilder sb = new StringBuilder(CODE_LENGTH);
+        for (int i = 0; i < CODE_LENGTH; i++) {
+            sb.append(NUMBER_POOL[RANDOM.nextInt(NUMBER_POOL.length)]);
+        }
+        return sb.toString();
+    }
+
+    @Override
+    public boolean verify(String code, String userInputCode) {
+        return false;
+    }
+}
+```
+
+这个时候，我们启动服务访问浏览器发现，这个验证码的图片并不会显示出来，原因是我们之前的 SecurityConfig 类里的 SecurityFilterChain 方法设定了，如果未登录，只能访问 `/toLogin` 这个请求，我们的验证码请求是 `/common/captcha`，并不能访问，我们在这个方法中把这个路径补上就好，
+
+```java
+public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+    // ...
+    authorizeHttpRequests
+            // 在这里加上我们允许为登录就访问就请求
+            .requestMatchers("/toLogin","/common/captcha").permitAll()
+            .anyRequest().authenticated();
+    })
+    // ...
+}
+```
+
+紧接着，就是最重要的，创建这个验证码的过滤器，因为现在完全不能识别对应上我们刚才生成的验证码。但是，SpringSecurity框架并没有为验证码设计一个过滤器，所以这个过滤器需要我们自己写。
+
+通过情况下，使用过滤器都会考虑到实现 servlet 的 Filter 接口这种方式，比如：
+
+```java
+public class CaptchaFilter implements Filter {
+	@Override
+    public void doFilter(ServletRequest servletRequest, ServletResponse servletResponse, FilterChain filterChain) throws IOException, ServletException {
+        HttpServletRequest request = (HttpServletRequest) servletRequest;
+        HttpServletResponse response = (HttpServletResponse) servletResponse;
+		// ...
+    }
+}
+```
+
+但在 Spring 项目中，一般不会以这种方式使用，因为需要强转输入类型的参数，比较麻烦。我们更加倾向于选择继承 OncePerRequestFilter 类实现。继承这个抽象类，实际上也是在间接实现 servlet 的 Filter 接口，只不过继承这种方式不用转型，更加方便。
+
+过滤器的逻辑很简单，就是只过滤登录请求，验证前后端的验证码是否匹配，若匹配上了，则用 filterChain.doFilter(request, response) 的方式放行，若没有匹配上，则跳转到 response.sendRedirect("/") ，此时别的过滤器会自动生效，自动跳转到登录页面（这里就忽略把验证未通过的 message 传到前端了，依然用 session 就好了），代码如下：
+
+```java
+@Component
+public class CaptchaFilter extends OncePerRequestFilter {
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+        // captchaFromFront 是前端用户输入的验证码字符串
+        String captchaFromFront = request.getParameter("captcha");
+
+        // 如果是登录请求，就验证，否则不需要验证
+        String requestURI = request.getRequestURI();
+        if (!requestURI.equals("/user/login")){
+            filterChain.doFilter(request, response);
+            return;
+        }
+        if (!StringUtils.hasText(captchaFromFront)){
+            // 前端传的验证码为空，验证未通过
+            response.sendRedirect("/");
+        }else if (!captchaFromFront.equalsIgnoreCase(request.getSession().getAttribute("captcha").toString())){
+            // 两端验证码不相等，验证不通过
+            response.sendRedirect("/");
+        }else {
+            // 通过！
+            filterChain.doFilter(request, response);
+        }
+    }
+}
+```
+
+注意加上 @Component 注解，因为现在 SpringBoot项目根本不会调用我们的过滤器，需要后续在配置文件中调用，所以我们要把这个类加入到 IoC 容器之中。
+
+如何把我们写的过滤器加入这个责任链？
+
+我们只需要在之前的 securityFilterChain 中的流式编程中添加上我们的过滤器就好，代码如下：
+
+```java
+public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+    return httpSecurity
+            .formLogin((formLogin) -> {
+                formLogin
+                        .loginProcessingUrl("/user/login")
+                        .loginPage("/toLogin")
+                    	// 后续测试发现的小 bug,要加上这一行，不然登录成功之后系统不知道跳转到哪一个页面，只能跳转到错误页面
+                        .defaultSuccessUrl("/", true);
+            })
+
+            .authorizeHttpRequests((authorizeHttpRequests) -> {
+                authorizeHttpRequests
+                        .requestMatchers("/toLogin","/common/captcha").permitAll()
+                        .anyRequest().authenticated();
+            })
+
+            // 在这里放我们的验证码过滤器，过滤器放在这个接受用户账号密码的 filter 之前
+            .addFilterBefore(captchaFilter, UsernamePasswordAuthenticationFilter.class)
+
+            .build();
+}
+```
+
+接下来再进行一个大总结，总结下 SpringSecurity 验证码登录流程分析
+
+1. 访问http://localhost:8080/hello 
+2. 被 SpringSecurity 的 filter 过滤器拦截（里面有 16 个 Filter）
+3. 由于没有登录过，所以 SpringSecurity  就跳转到自定义的登录页 login.html
+4. 我们在登录页输入账号、密码、验证码 去提交登录
+5. CaptchaFilter（我们写的）拦截登录请求，验证一下验证码对不对
+6. 验证码正确，就执行下一个Filter，调用 UsernamePasswordAuthenticationFilter（Spring Security框架的）接收账号和密码
+7. UserDetailsService.loadUserByUsername()（我们覆盖该方法）--> userMaper（mybatis）--> 查数据库 --> 返回 userDetail  (框架的)
+8. 把 userDetail 返回给（框架）进行用户状态检查和密码比较
+
+### 第 5 章 关于 BCrypt 密码加密和密码匹配原理
+
+首先有个基本常识，就是在数据库中存储的并非密码的明文，而是存储由加密算法加密之后的密文（这也解释了，为什么市面上的几乎所有平台，你若忘记了密码，是会让你再重新创建一个新的密码，而不是把原密码给你，因为平台也不知道你的原密码明文究竟是多少）。这么做的好处就是若数据库信息被黑客泄露，也不会泄露最危险的明文密码。
+
+目前比较流行的加密算法主要有两个，分别是 **MD5** 和 **BCrypt **，而我们的 SpringSecurity 框架默认是采用 **BCrypt **的。
+
+之前的代码中，我们也使用过密码加密器，就是：
+
+```java
+@Bean
+public PasswordEncoder passwordEncoder() {
+    return new BCryptPasswordEncoder();
+}
+```
+
+其中 PasswordEncoder 是密码加密接口，BCryptPasswordEncoder 是一个它的实现类。加密器最常用的两个方法是 **encode** 和 **matches**，即**加密**和**匹配**。注意，加密器是没有解密这个方法的，因为加密器也没有办法通过密文解密原文的。
+
+然后，我试着写了些加密的代码，来进一步学习加密器：
+
+```java
+@Test
+void test01() {
+    BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
+    String encode1 = passwordEncoder.encode("123");
+    System.out.println(encode1); // $2a$10$EGCBc7Ly4uHJOUW/lVxaJO2nmyWbgKo2zjRXP8EV0UlXvtiCVgEhq
+    String encode2 = passwordEncoder.encode("123");
+    System.out.println(encode2); // $2a$10$1CNG7b9KnKf9iF5bqHH90uY5MuG3TXaMB6eP8ipb03X.2YMhsVS4a
+    String encode3 = passwordEncoder.encode("123");
+    System.out.println(encode3); // $2a$10$aHV.uyeQRBoXfRk/9NCnvOlIZH0zMsEIYleilaHU0.M..dJogzDbW
+    System.out.println(passwordEncoder.matches("123", encode1)); // true
+    System.out.println(passwordEncoder.matches("123", encode2)); // true
+    System.out.println(passwordEncoder.matches("123", encode3)); // true
+}
+```
+
+通过以上代码和输出结果，我得出一个结论：
+
+即使是相同的明文，BCrypt 加密算法也会加密出不同的密文，同时，这些不同的密文，都能够和原文匹配。
+
+接下来我将进一步解析 BCrypt  加密原理。
+
+BCrypt  的加密原理是：
+
+```
+假设明文是 123，密文是 $2a$10$EGCBc7Ly4uHJOUW/lVxaJO2nmyWbgKo2zjRXP8EV0UlXvtiCVgEhq
+```
+
++ 密文的 1 - 7 位
+  + 密文的前七位字符是密文的版本，是固定的。
++ 密文的 8 - 29 位
+  + 密文版本之后的 22 个字符，是加密算法随机生成的 22 位盐值（salt），这些盐值的不同就决定了我们重复加密同一个明文，密文却不一样的情况。
+
++ 密文的 30 - 60 位
+
+  + 密文最后的 31 个字符，是通过算法生成的，参数就是明文和盐值，类似方法比如
+
+    ```java
+    String bcrypt(String mingwen,String salt){
+    	// ...
+    }
+    ```
+
+以上就是BCrypt  的大致加密原理，具体的 bcrypt 算法，就不在这里说了。至于匹配的原理也大致一样，匹配会依次找到密文的三个部分，版本，盐值和密文，根据上面的那个 bcrypt 方法得出的密文，和待匹配的密文进行比较，就可以得出匹配结果了。
+
+### 第 6 章 SpringSecurity 获取当前登录用户的用户信息
+

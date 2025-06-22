@@ -1,12 +1,15 @@
 package com.sangui.springsecurity.config;
 
 
+import com.sangui.springsecurity.filter.CaptchaFilter;
+import jakarta.annotation.Resource;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
  * @Author: sangui
@@ -16,6 +19,9 @@ import org.springframework.security.web.SecurityFilterChain;
  */
 @Configuration
 public class SecurityConfig {
+    @Resource
+    CaptchaFilter captchaFilter;
+
     // 将 SpringSecurity 中的 BCrypt 加密器引入我们的 IoC 容器之中
     // 相当于 xml 文件中的：<bean id="passwordEncoder" class="org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder"/>
     @Bean
@@ -30,14 +36,15 @@ public class SecurityConfig {
         // 一般不会这么 new 一个对象的
         // return new DefaultSecurityFilterChain();
 
-
         return httpSecurity
                 // 配置自己的登录页
                 .formLogin((formLogin) -> {
                     // 定制登录页 (Thymeleaf 页面)
                     formLogin
                             .loginProcessingUrl("/user/login")
-                            .loginPage("/toLogin");
+                            .loginPage("/toLogin")
+                            // 后续测试发现的小 bug,要加上这一行，不然登录成功之后系统不知道跳转到哪一个页面，只能跳转到错误页面
+                            .defaultSuccessUrl("/", true);
                 })
 
                 // 把所有接口都会进行登录状态检查的默认行为，再加回来
@@ -45,10 +52,16 @@ public class SecurityConfig {
                     // 任何对后端接口的请求，都需要认证（登录）后才能访问
                     authorizeHttpRequests
                             // 特殊情况设置，"/toLogin"页面允许访问
-                            .requestMatchers("/toLogin").permitAll()
+                            .requestMatchers("/toLogin","/common/captcha").permitAll()
                             .anyRequest().authenticated();
                 })
 
+                // 将我们的验证码过滤器，放在这个接受用户账号密码的 filter 之前
+                .addFilterBefore(captchaFilter, UsernamePasswordAuthenticationFilter.class)
+
                 .build();
     }
+
+
+
 }
