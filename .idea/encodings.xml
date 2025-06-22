@@ -5,5 +5,6 @@
     <file url="file://$PROJECT_DIR$/springsecurity-02-db-login/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/springsecurity-03-login-page/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/springsecurity-04-captcha-login/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/springsecurity-05-login-info/src/main/java" charset="UTF-8" />
   </component>
 </project>

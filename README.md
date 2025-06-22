@@ -388,6 +388,8 @@ public class CaptchaController {
 }
 ```
 
+这里我写的 Controller 其实并不规范，Controller 中一般只负责页面跳转，实际上的业务逻辑需要在 Service 包里写，我这里就为了方便省略了。
+
 值得注意的是，这里可以自定义验证码生成规则，只需要按照 hutool 的规范创建它的一个自定义类就好，我定义的规则是生成的验证码是四位纯数字，代码如下：
 
 ```java
@@ -486,7 +488,7 @@ public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws
                 formLogin
                         .loginProcessingUrl("/user/login")
                         .loginPage("/toLogin")
-                    	// 后续测试发现的小 bug,要加上这一行，不然登录成功之后系统不知道跳转到哪一个页面，只能跳转到错误页面
+                    	// 后续测试发现的小 bug,要加上这一行，不然登录成功之后系统会自动跳转到原访问路径，原访问路径若找不到该资源，只能跳转到错误页面
                         .defaultSuccessUrl("/", true);
             })
 
@@ -579,4 +581,402 @@ BCrypt  的加密原理是：
 以上就是BCrypt  的大致加密原理，具体的 bcrypt 算法，就不在这里说了。至于匹配的原理也大致一样，匹配会依次找到密文的三个部分，版本，盐值和密文，根据上面的那个 bcrypt 方法得出的密文，和待匹配的密文进行比较，就可以得出匹配结果了。
 
 ### 第 6 章 SpringSecurity 获取当前登录用户的用户信息
+
+该章节程序要求：当用户登录之后，可以在前台看到自己的登录账号的用户信息（其实就是登录的 t_user 表的所有字段值）
+
+这一章的程序会在第 4 章程序的基础上进行修改，因为大致程序都相同，只是在登录后可以获取当前登录用户的用户信息。
+
+有两种方法可以解决我们的本章要求，现在先将第一种，注入 jdk 的 Principal 接口
+
+在我们的 Controller 类中加入如下代码：
+
+```java
+// 新增页面路径，访问这个页面，可以获取用户的所有具体信息（也就是用户表中有的字段的信息）
+@RequestMapping(value = "/userInfo",method = RequestMethod.GET)
+@ResponseBody
+public Object userInfo(Principal principal){
+    return principal;
+}
+```
+
+我们先试着启动服务，登录后看访问这个路径会输出什么。
+
+结果，我们发现，当登录后访问 http://localhost:8080/userInfo 时，浏览器出现以下内容：
+
+```json
+{
+  "authorities": [],
+  "details": {
+    "remoteAddress": "0:0:0:0:0:0:0:1",
+    "sessionId": "A1541A805A5A661A0D7E49F027C93D12"
+  },
+  "authenticated": true,
+  "principal": {
+    "password": null,
+    "username": "admin",
+    "authorities": [],
+    "accountNonExpired": true,
+    "accountNonLocked": true,
+    "credentialsNonExpired": true,
+    "enabled": true
+  },
+  "credentials": null,
+  "name": "admin"
+}
+```
+
+仔细观察这个 json 对象，发现有用的信息几乎没有，只有什么权限信息，ip，sessionId，只有我们可怜的 username 字段的 admin 这个值时我们才觉得有用的，但这完全不够啊，我们的数据库中这张表的字段可不止这些啊。
+
+这是为什么呢，是因为当初我们在 UserServiceImpl 类的 loadUserByUsername 方法里我们返回的用户信息对象是 SpringSecurity 框架自己的 user 对象，这是 SpringSecurity 框架早就写好的，框架根本无法预料到之后使用框架的人的用户表有什么字段，只能肯定一定有它所提供的一些必要字段（如，账号，密码，四种权限信息等），我们现在也无法改变框架的代码，所以该怎么办呢？
+
+我们现在应该重新修改我的 TUser 实体类（就是对应我们数据库的实体表），让他实现 UserDetails 接口，我们就可以在 UserServiceImpl 类的 loadUserByUsername 方法里返回我们自己的 user 类了。
+
+具体怎么做？TUser 类实现 UserDetails 接口，添加三个必要的方法（获取权限、获取密码、获取用户名），和四个非必要的方法（获取四个账户的是否过期的布尔值类型，非必须，不实现默认都不过期）。具体的添加的代码如下：
+
+```java
+@Data
+public class TUser implements Serializable, UserDetails {
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        // 我们暂时不管返回什么权限，之后再学，先返回空
+        // List.of()，实际上代表的就是返回空
+        return List.of();
+    }
+
+    @Override
+    public String getPassword() {
+        // 返回我们的自己字段里的密码
+        return this.loginPwd;
+    }
+
+    @Override
+    public String getUsername() {
+        // 返回我们的自己字段里的账户名
+        return this.loginAct;
+    }
+
+    // 下面四个是非必要字段，不实现这四个方法，默认都不过期，即都是 true
+    @Override
+    public boolean isAccountNonExpired() {
+        // accountNoExpired 是我数据库中的一个字段，用于显示账户是否没有过期，0已过期 1正常
+        return this.accountNoExpired == 1;
+    }
+
+    @Override
+    public boolean isAccountNonLocked() {
+        // accountNoLocked 是我数据库中的一个字段，用于显示账号是否没有锁定，0已锁定 1正常
+        return this.accountNoLocked == 1;
+    }
+
+    @Override
+    public boolean isCredentialsNonExpired() {
+        // credentialsNoExpired 是我数据库中的一个字段，用于显示密码是否没有过期，0已过期 1正常
+        return this.credentialsNoExpired == 1;
+    }
+
+    @Override
+    public boolean isEnabled() {
+        // accountEnabled 是我数据库中的一个字段，用于显示账号是否启用，0禁用 1启用
+        return this.accountEnabled == 1;
+    }
+    
+    // 保留 TUser 类中原始的代码，上面的内容是新加的....
+}
+```
+
+然后，就是在 UserServiceImpl 类的 loadUserByUsername 里，返回我们已经实现 UserDetails 接口的 TUser 类。具体代码如下：
+
+```java
+@Override
+    public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
+        TUser tUser = tUserMapper.selectByLoginAct(username);
+
+        if (tUser == null) {
+            throw new UsernameNotFoundException("登录账号不存在");
+        }
+
+        // 现在，我们就不需要以下的代码了！
+//        UserDetails userDetails = User.builder()
+//                .username(tUser.getLoginAct())
+//                .password(tUser.getLoginPwd())
+//                .authorities(AuthorityUtils.NO_AUTHORITIES)
+//                .build();
+
+		// 这里返回我们自己的 tUser 对象
+        return tUser;
+    }
+```
+
+接下来，我们来看看启动服务，浏览器会返回我们什么：
+
+```json
+{
+  "authorities": [],
+  "details": {
+    "remoteAddress": "0:0:0:0:0:0:0:1",
+    "sessionId": "4BCC47AE9CCE719F482D4CEE1BFA769B"
+  },
+  "authenticated": true,
+  "principal": {
+    "id": 1,
+    "loginAct": "admin",
+    "loginPwd": "$2a$10$Nlhwhtd0BSCBK95CAifv7eWpCjHloPBMZ3Gaehcc56hRAV3DZALJO",
+    "name": "管理员",
+    "phone": "13700000000",
+    "email": "admin@qq.com",
+    "accountNoExpired": 1,
+    "credentialsNoExpired": 1,
+    "accountNoLocked": 1,
+    "accountEnabled": 1,
+    "createTime": "2023-02-22T01:37:12.000+00:00",
+    "createBy": null,
+    "editTime": "2023-05-22T16:21:06.000+00:00",
+    "editBy": null,
+    "lastLoginTime": "2025-06-15T11:34:32.000+00:00",
+    "enabled": true,
+    "password": "$2a$10$Nlhwhtd0BSCBK95CAifv7eWpCjHloPBMZ3Gaehcc56hRAV3DZALJO",
+    "credentialsNonExpired": true,
+    "username": "admin",
+    "accountNonExpired": true,
+    "authorities": [],
+    "accountNonLocked": true
+  },
+  "credentials": null,
+  "name": "admin"
+}
+```
+
+可以看到，这次返回的数据中，已经有我们的数据库中的字段值了。我们成功了。
+
+但是，我也发现了一些问题，就是这段的 json 中的 principal 数组，是我们的数据库中的对应登录用户的数据，但是，它好像平白无故得多了几个字段，我一数，是最后七个字段：
+
+```
+"enabled": true,
+"password": "$2a$10$Nlhwhtd0BSCBK95CAifv7eWpCjHloPBMZ3Gaehcc56hRAV3DZALJO",
+"credentialsNonExpired": true,
+"username": "admin",
+"accountNonExpired": true,
+"authorities": [],
+"accountNonLocked": true
+```
+
+即上面得七个，是我数据库中没有的，或者说是和我其他的字段有冲突的。这是这么回事，我好像在哪见过这些字段，就是在我们刚刚修改的 TUer 类里。
+
+其实，这是一个正常现象，我们这个返回的 json 对象，是 SpringSecurity 框架通过的 jackson 这个 jar 包，由 java 对象（也就是我们的 tUser 对象）转化为的 json 对象，这个 jackson jar 包的转换，他会将我们类里的 getXxx方法，isYyy方法，自动转化为属性 xxx，yyy，不管你这个类里是否有这个 xxx，yyy 属性。这就解释了，为什么我们浏览器输出的 json 对象，会有这额外的七个字段了，因为 jackson 字段将我们刚刚修改的 TUser 类里的方法，识别成了我们类里的属性了。如何修复？很简单。只需要在不想输出的方法中加上 @JsonIgnore 注解 就可以了。就像：
+
+```json
+@Data
+public class TUser implements Serializable, UserDetails {
+    // 在这里加入 @JsonIgnore 注解，让 jackson 忽略生成这个属性
+	@JsonIgnore
+    @Override
+    public Collection<? extends GrantedAuthority> getAuthorities() {
+        return List.of();
+    }
+
+    // 在这里加入 @JsonIgnore 注解，让 jackson 忽略生成这个属性
+	@JsonIgnore
+    @Override
+    public String getPassword() {
+        return this.loginPwd;
+    }
+
+    // 在这里加入 @JsonIgnore 注解，让 jackson 忽略生成这个属性
+	@JsonIgnore
+    @Override
+    public String getUsername() {
+        return this.loginAct;
+    }
+
+    // 在这里加入 @JsonIgnore 注解，让 jackson 忽略生成这个属性
+	@JsonIgnore
+    @Override
+    public boolean isAccountNonExpired() {
+        
+        return this.accountNoExpired == 1;
+    }
+
+    // 在这里加入 @JsonIgnore 注解，让 jackson 忽略生成这个属性
+	@JsonIgnore
+    @Override
+    public boolean isAccountNonLocked() {
+        return this.accountNoLocked == 1;
+    }
+
+    // 在这里加入 @JsonIgnore 注解，让 jackson 忽略生成这个属性
+	@JsonIgnore
+    @Override
+    public boolean isCredentialsNonExpired() {
+        return this.credentialsNoExpired == 1;
+    }
+
+    // 在这里加入 @JsonIgnore 注解，让 jackson 忽略生成这个属性
+	@JsonIgnore
+    @Override
+    public boolean isEnabled() {
+        return this.accountEnabled == 1;
+    }
+    
+    // 其他代码....
+}
+```
+
+特别的，如果我们认为，不希望把一些属性返回到前端，比如我们的真实的属性值字段，也可以为他加上 @JsonIgnore 注解，不让他传到前端：
+
+```java
+@JsonIgnore
+private String loginPwd;
+```
+
+同样的，Date 类型的属性可以加这个注解，以返回前端正确的格式：@JsonFormat(pattern = "yyyy-MM-dd HH:mm:ss",timezone = "GMT+8")，也可在 application.yml 文件中全局指定 jackson 返回的格式和市区，当然，这都不是现在 SpringSecurity 学习的重点，我就提一嘴。
+
+现在，我们启动应用，登陆后，看到前端返回了：
+
+```json
+{
+  "authorities": [],
+  "details": {
+    "remoteAddress": "0:0:0:0:0:0:0:1",
+    "sessionId": "2F110AAE106F696C835F5D0B329CEE56"
+  },
+  "authenticated": true,
+  "principal": {
+    "id": 1,
+    "loginAct": "admin",
+    "loginPwd": "$2a$10$Nlhwhtd0BSCBK95CAifv7eWpCjHloPBMZ3Gaehcc56hRAV3DZALJO",
+    "name": "管理员",
+    "phone": "13700000000",
+    "email": "admin@qq.com",
+    "accountNoExpired": 1,
+    "credentialsNoExpired": 1,
+    "accountNoLocked": 1,
+    "accountEnabled": 1,
+    "createTime": "2023-02-22T01:37:12.000+00:00",
+    "createBy": null,
+    "editTime": "2023-05-22T16:21:06.000+00:00",
+    "editBy": null,
+    "lastLoginTime": "2025-06-15T11:34:32.000+00:00"
+  },
+  "credentials": null,
+  "name": "admin"
+}
+```
+
+这下子，principal 这个数组里返回的，就都是我们数据库中的字段了。
+
+至此，我们获取当前登录用户的用户信息的第一种方法：注入 jdk 的 Principal 接口，就完成了。
+
+第二种方法，使用 SpringSecurity 框架的 Authentication 接口，获取当前登录用户的用户信息。
+
+实际上，这个接口就是继承了我们 jdk 的 Principal 接口，第二种方法，本质上还是第一种方法，只不过，我们用的是 SpringSecurity 的接口了，而不是 jdk 的接口了。
+
+同样的，我们在 Controller 这个类中加入新的页面：
+
+```java
+// 新增新的页面路径，这个路径使用的 SpringSecurity 框架提供的 Authentication 接口
+// 今后最常用的就是 Authentication，不会用 Principal 的
+@RequestMapping(value = "/userInfo2",method = RequestMethod.GET)
+@ResponseBody
+public Object userInfo2(Authentication authentication){
+    return authentication;
+}
+```
+
+其他程序都不用改，因为第二种方法和第一种方法就接口不一样，实际其实差不多的。
+
+我们启动服务器，登录后跳转 http://localhost:8080/userInfo2 ,可以看到以下信息，这和第一种方法返回的一样
+
+```json
+{
+  "authorities": [],
+  "details": {
+    "remoteAddress": "0:0:0:0:0:0:0:1",
+    "sessionId": "F6F5A6F561B2DF5CB3089E2462AEB2F9"
+  },
+  "authenticated": true,
+  "principal": {
+    "id": 1,
+    "loginAct": "admin",
+    "loginPwd": "$2a$10$Nlhwhtd0BSCBK95CAifv7eWpCjHloPBMZ3Gaehcc56hRAV3DZALJO",
+    "name": "管理员",
+    "phone": "13700000000",
+    "email": "admin@qq.com",
+    "accountNoExpired": 1,
+    "credentialsNoExpired": 1,
+    "accountNoLocked": 1,
+    "accountEnabled": 1,
+    "createTime": "2023-02-22T01:37:12.000+00:00",
+    "createBy": null,
+    "editTime": "2023-05-22T16:21:06.000+00:00",
+    "editBy": null,
+    "lastLoginTime": "2025-06-15T11:34:32.000+00:00"
+  },
+  "credentials": null,
+  "name": "admin"
+}
+```
+
+至此，我们的两种方法就讲完了。甚至，我们还可以用 Authentication 的子接口 UsernamePasswordAuthenticationToken ，来实现第三种方式，只需要改Controller 类里的代码即可，就不再赘述了。
+
+```java
+@RequestMapping(value = "/userInfo3",method = RequestMethod.GET)
+@ResponseBody
+public Object userInfo3(UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken){
+    return usernamePasswordAuthenticationToken;
+}
+```
+
+甚至可以这样：（第四种方法）
+
+```java
+@RequestMapping(value = "/userInfo4",method = RequestMethod.GET)
+@ResponseBody
+public Object userInfo4(){
+    return SecurityContextHolder.getContext().getAuthentication();
+}
+```
+
+那我们平常在写程序时，我们通过会写个工具类，返回我们的已经登录用户的用户信息：
+
+```java
+public class LoginInfoUtil {
+    private LoginInfoUtil(){}
+    public static TUser getCurrentLoginUser(){
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        return (TUser) authentication.getPrincipal();
+    }
+}
+```
+
+Controller 中则这样：
+
+```java
+@RequestMapping(value = "/userInfo5",method = RequestMethod.GET)
+@ResponseBody
+public Object userInfo5(){
+    return LoginInfoUtil.getCurrentLoginUser().toString();
+}
+```
+
+这样，我们登陆后，就可以获取已经登录的用户信息了，浏览器返回如下内容：
+
+```json
+{
+  "id": 1,
+  "loginAct": "admin",
+  "loginPwd": "$2a$10$Nlhwhtd0BSCBK95CAifv7eWpCjHloPBMZ3Gaehcc56hRAV3DZALJO",
+  "name": "管理员",
+  "phone": "13700000000",
+  "email": "admin@qq.com",
+  "accountNoExpired": 1,
+  "credentialsNoExpired": 1,
+  "accountNoLocked": 1,
+  "accountEnabled": 1,
+  "createTime": "2023-02-22T01:37:12.000+00:00",
+  "createBy": null,
+  "editTime": "2023-05-22T16:21:06.000+00:00",
+  "editBy": null,
+  "lastLoginTime": "2025-06-15T11:34:32.000+00:00"
+}
+```
 
