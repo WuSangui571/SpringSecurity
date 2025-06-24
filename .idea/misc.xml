@@ -9,6 +9,7 @@
         <option value="$PROJECT_DIR$/springsecurity-03-login-page/pom.xml" />
         <option value="$PROJECT_DIR$/springsecurity-04-captcha-login/pom.xml" />
         <option value="$PROJECT_DIR$/springsecurity-05-login-info/pom.xml" />
+        <option value="$PROJECT_DIR$/springsecurity-06-role-permission/pom.xml" />
       </list>
     </option>
   </component>

@@ -3,6 +3,30 @@
   <component name="PersistentConfig">
     <option name="historyConfigList">
       <map>
+        <entry key="t_role">
+          <value>
+            <Config>
+              <option name="comment" value="true" />
+              <option name="daoMvnPath" value="src/main/java" />
+              <option name="daoName" value="TRoleMapper" />
+              <option name="daoPackage" value="com.sangui.springsecurity.mapper" />
+              <option name="daoPostfix" value="Mapper" />
+              <option name="modelMvnPath" value="src/main/java" />
+              <option name="modelName" value="TRole" />
+              <option name="modelPackage" value="com.sangui.springsecurity.model" />
+              <option name="name" value="t_role" />
+              <option name="overrideJava" value="true" />
+              <option name="overrideXML" value="true" />
+              <option name="primaryKey" value="id" />
+              <option name="projectFolder" value="$PROJECT_DIR$/springsecurity-06-role-permission" />
+              <option name="tableName" value="t_role" />
+              <option name="useLombokPlugin" value="true" />
+              <option name="useSchemaPrefix" value="true" />
+              <option name="xmlMvnPath" value="src/main/resources" />
+              <option name="xmlPackage" value="mappers" />
+            </Config>
+          </value>
+        </entry>
         <entry key="t_user">
           <value>
             <Config>
