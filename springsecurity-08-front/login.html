@@ -7,18 +7,21 @@
 </head>
 <body>
     <form action="http://localhost:8080/user/login" method="post">
-        账号：<input type="text" name="username"><br/>
-        密码:<input type="password" name="password"><br/>
+        账号：<input type="text" id="username" name="username"><br/>
+        密码:<input type="password" id="password" name="password"><br/>
         <input type="button" value="Login" onclick="login()">
     </form>
 </body>
 <script type="text/javascript">
     function login(){
-        axios.post('/user/login', {
-            firstName: 'Fred',
-            lastName: 'Flintstone'
+        let username = document.getElementById('username').value;
+        let password = document.getElementById('password').value;
+
+        axios.post('http://localhost:8080/user/login', {
+            username: username,
+            lastName: password
         }).then(function (response) {
-                console.log(response);
+            console.log(response);
         })
         .catch(function (error) {
             console.log(error);

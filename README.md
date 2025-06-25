@@ -1350,3 +1350,117 @@ public class ClueController {
 
 首先我们继承我们之前几章的代码，由于我们是前后端分离的项目，就可以把所以前端的页面都不要了，删了，把验证码模块先不用，权限管理模块也先不用，我们就验证下登录就好。
 
+首先因为我们是前后端分离的项目，所以一个 module 是后端的 SpringSecurity 项目，这里可以继承第 7 章写的代码，但是注意删除所有之前关于验证码模块、权限管理模块的代码。另一个 module 是前端 Vue 项目，我这里先用 HTML 项目代替下。
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login Page</title>
+    <script src="js/axios.js"></script>
+</head>
+<body>
+    <form action="http://localhost:8080/user/login" method="post">
+        账号：<input type="text" id="username" name="username"><br/>
+        密码:<input type="password" id="password" name="password"><br/>
+        <input type="button" value="Login" onclick="login()">
+    </form>
+</body>
+<script type="text/javascript">
+    function login(){
+        let username = document.getElementById('username').value;
+        let password = document.getElementById('password').value;
+
+        axios.post('http://localhost:8080/user/login', {
+            username: username,
+            lastName: password
+        }).then(function (response) {
+            console.log(response);
+        })
+        .catch(function (error) {
+            console.log(error);
+        });
+    }
+</script>
+
+</html>
+```
+
+同时，后端的 SpringSecurity 配置文件类要添加新的设置，就是允许跨站请求和跨域请求：
+
+没有两个的话，输入账户密码点击登录之后，浏览器会直接报错。
+
+```java
+@Configuration
+@EnableMethodSecurity()
+public class SecurityConfig {
+    // 其他剩余代码......
+    
+    // 新增 CorsConfigurationSource 对象到我们的容器中，之后在 securityFilterChain 的请求中使用
+    // 固定代码，不用记，以后都这么写
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource(){
+        // 我们选择基于路径的 CorsConfigurationSource 接口的实现类
+        UrlBasedCorsConfigurationSource urlBasedCorsConfigurationSource = new UrlBasedCorsConfigurationSource();
+
+        // 跨域设置
+        CorsConfiguration corsConfiguration = new CorsConfiguration();
+        // 允许任何来源，
+        corsConfiguration.setAllowedOrigins(Arrays.asList("*"));
+        // 允许任何请求方法，post,get,put,delete
+        corsConfiguration.setAllowedMethods(Arrays.asList("*"));
+        // 允许任何的请求头
+        corsConfiguration.setAllowedHeaders(Arrays.asList("*"));
+
+        // 注册跨域配置，这里 '/**' 表示任何路径都会匹配（无论这个路径有几层）
+        urlBasedCorsConfigurationSource.registerCorsConfiguration("/**",corsConfiguration);
+
+        return urlBasedCorsConfigurationSource;
+    }
+    
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity) throws Exception {
+        return httpSecurity
+            .formLogin((formLogin) -> {
+                formLogin
+                        .loginProcessingUrl("/user/login");
+                        // 新章节，注释掉之前章节无用的代码
+                        // .loginPage("/toLogin")
+                        // 新章节，注释掉之前章节无用的代码
+                        // .defaultSuccessUrl("/", true);
+            })
+            .authorizeHttpRequests((authorizeHttpRequests) -> {
+                authorizeHttpRequests
+                        // 新章节，注释掉之前章节无用的代码
+                        //.requestMatchers("/toLogin","/common/captcha").permitAll()
+                        .anyRequest().authenticated();
+            })
+            // 新章节，注释掉之前章节无用的代码
+            //.addFilterBefore(captchaFilter, UsernamePasswordAuthenticationFilter.class)
+
+            .csrf((csrf) ->{
+                // 禁用 csrf 跨站请求伪造。禁用之后，肯定不安全，有网络攻击的危险，后续加入 jwt 是可以防御的
+                csrf.disable();
+            })
+            .cors((cors) ->{
+                // 允许前端跨域访问
+                cors.configurationSource(corsConfigurationSource);
+            })
+
+            .build();
+    }
+}
+```
+
+什么是跨域？跨域有三种，
+
++ 协议不同会跨域，比如 https://localhost:8080 和 [http://localhost:8080](https://localhost:8080) 的前面的协议不同
++ 端口不同会跨域：比如 http://localhost:10492 和 http://localhost:8080 的后面的协议不同
++ 域名不同会跨域：比如 http://sangui.top 和 http://baidu.com 的域名不同
+
+三个里面有任何一个不同，都是跨域，跨域是浏览器不允许的，浏览器是为了安全，不允许你跨域访问；
+
+注意！跨站和跨域是两个不同的东西！
+
+此时，我们访问浏览器，点击登陆后，后台不报之前不能跨域的错了，但是呢，现在浏览器的输出显示，我需要登录的 html （就是 SpringSecurity 框架内置的那个 html）。这证明了，我现在可以跨域请求了，但是，SpringSecurity 框架认为我没有登陆上。于是我断点 UserServiceImpl 类，发现点击登录之后，我的 tUser 对象的 username 的值是空的，这证实了我的猜想，说明我是因为 username 为空而导致登录不上的。  

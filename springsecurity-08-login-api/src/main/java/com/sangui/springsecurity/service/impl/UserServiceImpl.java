@@ -1,6 +1,7 @@
 package com.sangui.springsecurity.service.impl;
 
 
+import com.sangui.springsecurity.handler.MyAuthenticationSuccessHandler;
 import com.sangui.springsecurity.mapper.TPermissionMapper;
 import com.sangui.springsecurity.mapper.TRoleMapper;
 import com.sangui.springsecurity.mapper.TUserMapper;
