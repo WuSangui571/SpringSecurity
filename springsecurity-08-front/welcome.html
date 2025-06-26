@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎使用</title>
+    <script src="js/axios.js"></script>
+</head>
+<body>
+    <h1>欢迎登录!!</h1>
+</body>
+<script type="text/javascript">
+    function getUserInfo(){
+        axios.get("http://localhost:8080/userInfo").then((resp) =>{
+            console.log(resp.data);
+        }).catch((error) =>{
+            console.log(error);
+        }).finally((e) =>{
+
+        })
+    }
+</script>
+</html>

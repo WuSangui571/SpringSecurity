@@ -6,8 +6,8 @@ import com.sangui.springsecurity.result.R;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.web.authentication.AuthenticationSuccessHandler;
+import org.springframework.security.core.AuthenticationException;
+import org.springframework.security.web.authentication.AuthenticationFailureHandler;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
@@ -15,15 +15,15 @@ import java.io.IOException;
 /**
  * @Author: sangui
  * @CreateTime: 2025-06-25
- * @Description: 我的成功验证的 Handler
+ * @Description: 我的失败验证的 Handler
  * @Version: 1.0
  */
 @Component
-public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
+public class MyAuthenticationFailHandler implements AuthenticationFailureHandler {
     @Override
-    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
-        // 返回的 result 的结果码是 200,信息是登录成功,并返回权限信息
-        R result = R.ok("登录成功",authentication);
+    public void onAuthenticationFailure(HttpServletRequest request, HttpServletResponse response, AuthenticationException exception) throws IOException, ServletException {
+        // 返回的 result 的结果码是 500,信息是登录失败,,并返回异常信息
+        R result = R.fail("登录失败:" + exception);
 
         // 将 result 对象转化为 json 字符串
         String json = new ObjectMapper().writeValueAsString(result);
@@ -32,4 +32,5 @@ public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHand
 
         response.getWriter().write(json);
     }
+
 }

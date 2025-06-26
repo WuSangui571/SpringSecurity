@@ -2,8 +2,10 @@ package com.sangui.springsecurity.config;
 
 
 import com.sangui.springsecurity.filter.CaptchaFilter;
+import com.sangui.springsecurity.handler.MyAuthenticationFailHandler;
 import com.sangui.springsecurity.handler.MyAuthenticationSuccessHandler;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
@@ -26,11 +28,15 @@ import java.util.Arrays;
  * @Description: SpringSecurity 的配置文件类
  * @Version: 1.0
  */
+@Slf4j
 @Configuration
 @EnableMethodSecurity()
 public class SecurityConfig {
     @Resource
     MyAuthenticationSuccessHandler myAuthenticationSuccessHandler;
+
+    @Resource
+    MyAuthenticationFailHandler myAuthenticationFailHandler;
 
     @Resource
     CaptchaFilter captchaFilter;
@@ -79,8 +85,10 @@ public class SecurityConfig {
                             // .loginPage("/toLogin")
                             // 后续测试发现的小 bug,要加上这一行，不然登录成功之后系统不知道跳转到哪一个页面，只能跳转到错误页面
                             // .defaultSuccessUrl("/", true);
-                            //
-                            .successHandler(myAuthenticationSuccessHandler);
+                            // 在这里加入我们的成功的 Handler
+                            .successHandler(myAuthenticationSuccessHandler)
+                            .failureHandler(myAuthenticationFailHandler);
+
 
                 })
 

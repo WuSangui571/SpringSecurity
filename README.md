@@ -1463,4 +1463,200 @@ public class SecurityConfig {
 
 注意！跨站和跨域是两个不同的东西！
 
+这里，需要注意，因为前后端是不同的项目，之前的逻辑是，若后端的项目的项目通过前端传输的数据判断登录成功时，直接跳转到某个前端页面（因为前后端不分离，后端可以直接调前端的页面）。但是，现在我们是前后端分离了，不能直接跳转前端也面临，我这里选择使用 AuthenticationSuccessHandler 接口。现在的逻辑是，点击登录之后，后端进行登录验证，给前端返回一个 ok 或者 不 ok ，前端自行根据后端的数据，跳转不同的页面，后端是不管跳转的，只给前端传状态。
+
+```java
+@Component
+public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+        // 这里
+        response.getWriter().write("ok");
+    }
+}
+```
+
+按照上面的程序创建好我们自己实现的 MyAuthenticationSuccessHandler 类之后，就可以在后端的 SpringSecurity 配置文件里配置登录成功后调用我们的 Handler 了：
+
+```java
+@Bean
+public SecurityFilterChain securityFilterChain(HttpSecurity httpSecurity,CorsConfigurationSource corsConfigurationSource) throws Exception {
+    return httpSecurity
+            .formLogin((formLogin) -> {
+                formLogin
+                        .loginProcessingUrl("/user/login")
+                        // 在这里加入我们的成功的 Handler
+                        .successHandler(myAuthenticationSuccessHandler);
+            })
+}
+```
+
 此时，我们访问浏览器，点击登陆后，后台不报之前不能跨域的错了，但是呢，现在浏览器的输出显示，我需要登录的 html （就是 SpringSecurity 框架内置的那个 html）。这证明了，我现在可以跨域请求了，但是，SpringSecurity 框架认为我没有登陆上。于是我断点 UserServiceImpl 类，发现点击登录之后，我的 tUser 对象的 username 的值是空的，这证实了我的猜想，说明我是因为 username 为空而导致登录不上的。  
+
+分析原因，后端没有拿到 username，这不是后端的事，因为之前几章的代码都没事，所有是前端的问题。而在我们现在的前端，我们提供给后端的是一个 JSON 格式的字符串，那后端拿不到，现在，我们要学习一种 formdata 这种 js 返回。下面的是修改的详细的 js 函数
+
+```js
+function login(){
+    let username = document.getElementById('username').value;
+    let password = document.getElementById('password').value;
+
+    // FormData 是一个 js 对象，可以直接在 js 代码中使用，叫做 js 表单数据对象
+    // 如：let date = new Date(); 中的 Date 也是一个 js 对象
+    let formData = new FormData();
+    // formData 通过 append 追加一个一个的 (Key,Value)
+    formData.append('username', username);
+    formData.append('password', password);
+
+    // 把之前的数据替换成我们的 formData
+    axios.post('http://localhost:8080/user/login', formData).then(function (response) {
+        console.log(response);
+    })
+    .catch(function (error) {
+        console.log(error);
+    });
+}
+```
+
+至此，允许程序断点发现，后端能够接受到了前端的 username 和 password 了。前端也接受到了后端传送的 `ok`：
+
+```
+config : {transitional: {…}, adapter: Array(2), transformRequest: Array(1), transformResponse: Array(1), timeout: 0, …}
+data :  "oK"
+headers : AxiosHeaders {cache-control: 'no-cache, no-store, max-age=0, must-revalidate', content-length: '2', expires: '0', pragma: 'no-cache'}
+request : XMLHttpRequest {onreadystatechange: null, readyState: 4, timeout: 0, withCredentials: false, upload: XMLHttpRequestUpload, …}
+status : 200
+statusText : ""
+```
+
+axios 发送异步请求，返回的 response 对象中有 6 个字段（如上），其中 data 字段就是我们后端返回的数据，其他字段一般在项目开发中很少使用。
+
+我们可以封装一个 R 实体，之后后端返回前端就不用简单的 ` response.getWriter().write("ok");` ：
+
+```java
+package com.sangui.springsecurity.result;
+
+
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Data;
+import lombok.NoArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
+/**
+ * @Author: sangui
+ * @CreateTime: 2025-06-26
+ * @Description: 后端使用 R 对象,封装返回给前端,这样后端返回的数据结构就统一了
+ * @Version: 1.0
+ */
+@Slf4j
+@Data
+@Builder
+@NoArgsConstructor
+@AllArgsConstructor
+public class R {
+    // 结果码
+    private Integer code;
+
+    // 结果信息(成功了,还是失败了)
+    private String msg;
+
+    // 结果类型数据(可能是 String,也可能是 user 对象等)
+    private Object data;
+
+    /**
+     * 默认成功的对象
+     * @return R 对象
+     */
+    private static R ok() {
+        return R.builder().code(200).msg("成功").data(null).build();
+    }
+
+    /**
+     * 成功的对象(可写结果码和结果信息)
+     * @param code 成功的结果码
+     * @param msg 成功的结果信息
+     * @return R 对象
+     */
+    public static R ok(int code, String msg) {
+        return R.builder().code(code).msg(msg).data(null).build();
+    }
+
+    /**
+     * 成功的对象(可写结果类型数据)
+     * @param data 结果类型数据
+     * @return R 对象
+     */
+    public static R ok(Object data) {
+        return R.builder().code(200).msg("成功").data(data).build();
+    }
+
+    /**
+     * 默认失败的对象
+     * @return R 对象
+     */
+    public static R fail() {
+        return R.builder().code(500).msg("失败").data(null).build();
+    }
+
+    /**
+     * 失败的对象(可写结果信息)
+     * @param msg 失败的结果信息
+     * @return R 对象
+     */
+    public static R fail(String msg) {
+        return R.builder().code(500).msg(msg).data(null).build();
+    }
+
+}
+```
+
+同时，在 MyAuthenticationSuccessHandler 中修改代码，应用我们刚刚写的 R 对象：
+
+```java
+@Component
+public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
+    @Override
+    public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+        // 返回的 result 的结果码是 200,信息是登录成功,并返回权限信息
+        R result = R.ok("登录成功",authentication);
+
+        // 将 result 对象转化为 json 字符串
+        String json = new ObjectMapper().writeValueAsString(result);
+        // 设置返回的类型和字符集
+        response.setContentType("application/json;charset=UTF-8");
+
+        response.getWriter().write(json);
+    }
+}
+```
+
+这样，我们前端接受的信息就完整了。同意的道理，为了程序的健壮性，我们把 MyAuthenticationFailHandler 创建好，并在 SecurityConfig 配置文件里配置。
+
+之后，我们在前端程序中写入以下逻辑：若后端返回 ok ,前端跳转到登录页面：
+
+```js
+function login(){
+    let username = document.getElementById('username').value;
+    let password = document.getElementById('password').value;
+
+    let formData = new FormData();
+    formData.append('username', username);
+    formData.append('password', password);
+
+    // 把之前的数据替换成我们的 formData
+    axios.post('http://localhost:8080/user/login', formData).then((response) =>{
+        // 不需要输出 response 了
+        console.log(response);
+        // 我们的
+        if (response.data.code === 200){
+            window.location.href = 'welcome.html';
+        }else {
+            alert(response.data.msg);
+        }
+    })
+    .catch((error) =>{
+        console.log(error);
+    });
+}
+```
+
