@@ -1647,7 +1647,7 @@ function login(){
     axios.post('http://localhost:8080/user/login', formData).then((response) =>{
         // 不需要输出 response 了
         console.log(response);
-        // 我们的
+        // 我们的跳转逻辑：
         if (response.data.code === 200){
             window.location.href = 'welcome.html';
         }else {
@@ -1659,4 +1659,78 @@ function login(){
     });
 }
 ```
+
+至此，我们登录我们正确的账户信息之后就可以进入我们的欢迎也页面了，我们看似就完成了前后端分离的登录认证。但是呢，我们还没有验证，现在登录状态下，能不能访问前几个章节写的未登录受保护的页面？让我们来验证一下，以下是我们的欢迎页面：
+
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>欢迎使用</title>
+    <script src="js/axios.js"></script>
+</head>
+<body>
+    <h1>欢迎登录!!</h1>
+    <!--新增超链接,访问之前章节写的页面-->
+    <a href="javascript:void(0)" onclick="getUserInfo()">获取用户信息</a>
+</body>
+<script type="text/javascript">
+    function getUserInfo(){
+        axios.get("http://localhost:8080/userInfo").then((resp) =>{
+            console.log(resp.data);
+        }).catch((error) =>{
+            console.log(error);
+        }).finally((e) =>{
+
+        })
+    }
+</script>
+</html>
+```
+
+当我们登录成功后，点击这个 `获取用户信息` 的超链接，并没有跳转，浏览器的控制台却输出了 SpringSecurity 的默认让我登录的 HTML 代码。这证明了，虽然我们的登录通过了验证，浏览器却没有真正记住我们，真实原因是我们前台的 Session ，并不能和后台的 Session 对上，之后的每次访问该应用，都要进行登录验证，究其原因是这前后端程序其实是两个程序引起的。
+
+那接下来我们将引入一个新的技术，来解决，就是之前提过的 JWT（JSON Web Token） 技术。详细的 JWT 技术的学习我们会在下一章节来学习它。我们之后的前后端分离的项目中，也是会使用这个技术来解决前后端的登录问题。
+
+而我们也会在 SpringSecurity 配置文件类里禁用 session、cookie 机制：
+
+```java
+// 禁用 session、cookie 机制（因为我们是前后端分离项目的开发）
+.sessionManagement((sessionManagement) -> {
+    // 使用无状态策略
+    sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS); 
+})
+```
+
+我们先把这一章的代码写完整，加入退出登录功能，登录后的首页加入`退出`超链接，并写以下 js ：
+
+```java
+function logout(){
+    axios.get("http://localhost:8080/user/logout").then((resp) =>{
+        console.log(resp.data);
+    }).catch((error) =>{
+        console.log(error);
+    }).finally((e) =>{
+        console.log(e);
+    })
+}
+```
+
+同时在后端 Security 配置文件加入退出登录的代码：
+
+```java
+// 退出登录
+.logout((logout) ->{
+    logout.logoutUrl("/user/logout")
+            // 退出成功后执行的 handler
+            .logoutSuccessHandler(myLogoutSuccessHandler);
+})
+```
+
+这里的 myLogoutSuccessHandler 也需要自己写，写的方式和之前写别的 Handler 一样，我就不贴代码了。特别注意，SpringSecurity 有退出成功的 Handler，但是是没有退出失败的 Handler。
+
+我们登陆后，点击`退出`超链接，很顺利，后端返回给浏览器 200 代码，并说退出成功，这里返回的 data 里的 authentication 为空，在后续引入 jwt 之后，这个退出的返回的 authentication 就不会为空了。这里，是不是会有个疑问，我们这个项目里，由于前后端分离了，登录只是表面上登录了，后续你访问别别的 uri 还是会拦截，让你去登陆，但是，为什么这里的退出登录的 uri 不被拦截？其实，SpringSecurity 是不会拦截自己的地址，只会拦截我们写的 Controller 中的地址。
+
+### 第 9 章 JWT（JSON Web Token）
 

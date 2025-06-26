@@ -4,12 +4,14 @@ package com.sangui.springsecurity.config;
 import com.sangui.springsecurity.filter.CaptchaFilter;
 import com.sangui.springsecurity.handler.MyAuthenticationFailHandler;
 import com.sangui.springsecurity.handler.MyAuthenticationSuccessHandler;
+import com.sangui.springsecurity.handler.MyLogoutSuccessHandler;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.DefaultSecurityFilterChain;
@@ -32,6 +34,9 @@ import java.util.Arrays;
 @Configuration
 @EnableMethodSecurity()
 public class SecurityConfig {
+    @Resource
+    MyLogoutSuccessHandler myLogoutSuccessHandler;
+
     @Resource
     MyAuthenticationSuccessHandler myAuthenticationSuccessHandler;
 
@@ -89,7 +94,13 @@ public class SecurityConfig {
                             .successHandler(myAuthenticationSuccessHandler)
                             .failureHandler(myAuthenticationFailHandler);
 
+                })
 
+                // 退出登录
+                .logout((logout) ->{
+                    logout.logoutUrl("/user/logout")
+                            // 退出成功后执行的 handler
+                            .logoutSuccessHandler(myLogoutSuccessHandler);
                 })
 
                 // 把所有接口都会进行登录状态检查的默认行为，再加回来
@@ -111,6 +122,12 @@ public class SecurityConfig {
                 .cors((cors) ->{
                     // 允许前端跨域访问
                     cors.configurationSource(corsConfigurationSource);
+                })
+
+                // 禁用 session、cookie 机制（因为我们是前后端分离项目的开发）
+                .sessionManagement((sessionManagement) -> {
+                    // 使用无状态策略
+                    sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
                 })
 
                 .build();
