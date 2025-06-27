@@ -12,6 +12,7 @@
         <option value="$PROJECT_DIR$/springsecurity-06-role-permission/pom.xml" />
         <option value="$PROJECT_DIR$/springsecurity-07-code-permission/pom.xml" />
         <option value="$PROJECT_DIR$/springsecurity-08-login-api/pom.xml" />
+        <option value="$PROJECT_DIR$/springsecurity-09-login-api-jwt/pom.xml" />
       </list>
     </option>
   </component>

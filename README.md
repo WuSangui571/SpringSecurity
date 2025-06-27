@@ -1734,3 +1734,227 @@ function logout(){
 
 ### 第 9 章 JWT（JSON Web Token）
 
+JWT（JSON Web Token）是一种开放的行业标准（RFC 7519），用于安全地双方之间传输信息，常用于各方之间传输信息，特别是在身份认证领域使用非常广泛。官网：[https://jwt.io/ ](https://jwt.io/)。JWT 的数据结构如下面这样：
+
+```jwt
+eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.
+eyJzdWIiOiIxMjM0NTY3ODkwIiwibmFtZSI6IkpvaG4gRG9lIiwiYWRtaW4iOnRydWUsImlhdCI6MTUxNjIzOTAyMn0.
+KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30
+```
+
+它以两个小数点分隔，分隔成三个部分，注意，JWT 内部是没有换行的，这里只是为了便于展示，将它写成了三行。这三个部分依次是：
+
++ Header（头部）
+
++ Payload（负载）
+
+  在这里可以携带一些业务数据（比如一些参数）
+
++ Signature（签名）
+
+写成一行就是：Header.Payload.Signature
+
+下面详细介绍下这三部分：
+
+先讲 Header（头部）部分。Header 部分原文是一个 JSON 字符串，描述 JWT 的元数据，通常如下：
+
+{"alg": "HS256","typ": "JWT"}
+
+```json
+{
+ "alg": "HS256",
+ "typ": "JWT"
+}
+```
+
+其中 alg 属性表示签名（JWT 的第三个部分就是签名）的算法（algorithm），默认是 HMAC SHA256（写成 HS256）。typ 属性表示这个令牌（token）的类型（type），JWT 令牌统一写为 JWT。最后，将上面的 JSON 对象使用 Base64URL 算法转成字符串，就得到 Header 部分。
+
+再讲 Payload （负载）部分。Payload 部分原文也是一个 JSON 对象，用来存放实际需要传递的数据，JWT 定义了 7 个官方字段供选用：
+
++ iss (issuer)：签发人
++ **exp (expiration time)：过期时间**
+
++ sub (subject)：主题
+
++ aud (audience)：受众
+
++ nbf (Not Before)：生效时间
+
++ **iat (Issued At)：签发时间**
+
++ jti (JWT ID)：编号
+
+但是我们可以不使用官方的字段，我们可以使用任何字段来传递数据，比如：
+
+```json
+{
+  "number": "1234567890",
+  "name": "cat",
+  "phone": "13700000000"
+}
+```
+
+这个 JSON 对象也要使用 Base64URL 算法转成字符串。
+
+注意，Base64URL 算法不是加密算法，它是编码算法，是可以解码出原文的，也就是 JWT 负载中的数据任何人都可以解码得到原文（不安全），所以不要把私密信息（密码，验证码等）放在这个部分。虽然可以解码出来，但是我们把比如加密之后的密码放在负载里面，也是没有问题，是安全的：
+
+```json
+{
+"id" : 10285
+"name" ： "sangui"
+"passowrd"："$2a$10$QcgTWQSZ11b6BDIPjsUDTOsR9BTS1e.LUvTY.3RirFyRO.5PBfEMO"
+}
+```
+
+最后讲一下 Signature （算法）部分，该部分是对前两部分的签名，防止数据篡改。首先，需要指定一个密钥（secret），这个密钥只有服务器才知道，不能泄露给用户，然后，使用 Header 里面指定的签名算法（默认是 HMAC SHA256），按照下面的公式产生签名：
+
+```
+ HMACSHA256(
+  base64UrlEncode(header) + "." +
+  base64UrlEncode(payload),
+  secret)
+```
+
+> HMACSHA256 基本概念
+>
+> - **HMAC**（Hash-based Message Authentication Code）：通过在哈希算法内部引入密钥，共同参与计算，产生一个固定长度的消息摘要（MAC），以抵御消息篡改与伪造。
+> - **SHA-256**：一种常用的安全哈希算法，输出长度为 256 位（32 字节）的哈希值。
+>
+> HMACSHA256 即用 SHA-256 作为底层哈希函数来构造 HMAC。
+
+我在这里简单写了一个方法，模拟我的的生成 JWT：
+
+```java
+// 在 Test 注解里简单模拟 jwt 的生成
+@Test
+void testJwt() throws Exception {
+    // 这里是用户自己选择的
+    String alg = "HS256";
+    Object object = new TUser();
+
+    // 从以下代码开始就是自己执行的
+
+    // 假设这里的 JWT_SECRET 就是本项目的一个静态变量密钥
+    String secret = JWT_SECRET;
+
+    String headerJson = "{\"alg\": \"" + alg + "\",\"typ\": \"JWT\"}";
+    String payloadJson = new ObjectMapper().writeValueAsString(object);
+
+    // 假设这里的 base64UrlEncode 方法就是我们的 Base64URL 加密算法。
+    String headerEncoded   = base64UrlEncode(headerJson);
+    String payloadEncoded  = base64UrlEncode(payloadJson);
+
+    // 假设这里的 HMACSHA256 方法就是我们的 HMAC SHA256 加密算法。
+    String signature  = HMACSHA256(headerEncoded   + "." + payloadEncoded ,secret);
+
+    // 这就是最终的 jwt 字符串了
+    String jwt  = headerEncoded   + "." +  payloadEncoded  + "." + signature;
+}
+```
+
+这里还得额外写 base64UrlEncode 方法，HMACSHA256 方法，我没有写。当然，以后不用这么复杂，有开源的库早就帮我们写好了：
+
+```xml
+<!-- https://mvnrepository.com/artifact/com.auth0/java-jwt -->
+<dependency>
+    <groupId>com.auth0</groupId>
+    <artifactId>java-jwt</artifactId>
+    <version>4.5.0</version>
+</dependency>
+```
+
+或
+
+```xml
+<!-- https://mvnrepository.com/artifact/cn.hutool/hutool-jwt -->
+<dependency>
+    <groupId>cn.hutool</groupId>
+    <artifactId>hutool-jwt</artifactId>
+    <version>5.8.38</version>
+</dependency>
+```
+
+引入之后，我们写一个工具类，之后使用的化直接调用这个工具类就好：
+
+```java
+package com.sangui.springsecurity.util;
+
+
+import com.auth0.jwt.JWT;
+import com.auth0.jwt.JWTVerifier;
+import com.auth0.jwt.algorithms.Algorithm;
+import com.auth0.jwt.exceptions.TokenExpiredException;
+import com.auth0.jwt.interfaces.Claim;
+import com.auth0.jwt.interfaces.DecodedJWT;
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * @Author: sangui
+ * @CreateTime: 2025-06-27
+ * @Description: JWT 工具类
+ * @Version: 1.0
+ */
+public class JwtUtil {
+    // 密钥不能被别人知道，密钥尽量复杂点
+    public static final String SECRET = "sangui is MY sUPERhEROOO000OOOO!!asdas@#@#`$!@#4!@%!@#/^/&.(*@33^!,23@#.!1@#,$%^#$%";
+
+    /**
+     * 生成 JWT 字符串
+     * @param userJson 由 user 对象的转化的 json 字符串
+     * @return JWT 字符串
+     */
+    public String createToken(String userJson) {
+        // 组装头数据
+        Map<String, Object> header = new HashMap<>();
+        header.put("alg", "HS256");
+        header.put("typ", "JWT");
+        return JWT.create()
+                // 头
+                .withHeader(header)
+                // 自定义数据
+                .withClaim("user", userJson)
+                // 签名算法
+                .sign(Algorithm.HMAC256(SECRET));
+    }
+
+    /**
+     * 验证 JWT 是否被篡改过
+     * @param token JWT 字符串
+     * @return true 代表 JWT 没有被篡改过，false 代表 JWT 被篡改过
+     */
+    public Boolean verifyToken(String token) {
+        try {
+            // 使用秘钥创建一个验证对象
+            JWTVerifier jwtVerifier = JWT.require(Algorithm.HMAC256(SECRET)).build();
+            // 验证 JWT
+            jwtVerifier.verify(token);
+            return true;
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return false;
+    }
+
+    /**
+     * 解析 JWT 中的负载数据
+     * @param token JWT 字符串
+     * @return
+     */
+    public String parseToken(String token) {
+        try {
+            // 使用秘钥创建一个解析对象
+            JWTVerifier jwtVerifier = JWT.require(Algorithm.HMAC256(SECRET)).build();
+            //验证JWT
+            DecodedJWT decodedJwt = jwtVerifier.verify(token);
+            Claim user = decodedJwt.getClaim("user");
+            return user.asString();
+        } catch (TokenExpiredException e) {
+            e.printStackTrace();
+            throw new RuntimeException(e);
+        }
+    }
+}
+```
+

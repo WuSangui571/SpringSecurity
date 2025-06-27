@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Login Page</title>
+    <script src="js/axios.js"></script>
+</head>
+<body>
+    <form action="http://localhost:8080/user/login" method="post">
+        账号：<input type="text" id="username" name="username"><br/>
+        密码:<input type="password" id="password" name="password"><br/>
+        <input type="button" value="Login" onclick="login()">
+    </form>
+</body>
+<script type="text/javascript">
+    function login(){
+        let username = document.getElementById('username').value;
+        let password = document.getElementById('password').value;
+
+        // FormData 是一个 js 对象，可以直接在 js 代码中使用，叫做 js 表单数据对象
+        // 如：let date = new Date(); 中的 Date 也是一个 js 对象
+        let formData = new FormData();
+        // formData 通过 append 追加一个一个的 (Key,Value)
+        formData.append('username', username);
+        formData.append('password', password);
+
+        // 把之前的数据替换成我们的 formData
+        axios.post('http://localhost:8080/user/login', formData).then((response) =>{
+            console.log(response);
+            if (response.data.code === 200){
+                window.location.href = 'welcome.html';
+            }else {
+                alert(response.data.msg);
+            }
+        })
+        .catch((error) =>{
+            console.log(error);
+        });
+    }
+</script>
+
+</html>

@@ -9,7 +9,7 @@
         <module name="springsecurity-02-db-login" />
         <module name="springsecurity-01-base" />
       </profile>
-      <profile name="Annotation profile for springsecurity-08-login-api" enabled="true">
+      <profile name="Annotation profile for springsecurity-09-login-api-jwt" enabled="true">
         <sourceOutputDir name="target/generated-sources/annotations" />
         <sourceTestOutputDir name="target/generated-test-sources/test-annotations" />
         <outputRelativeToContentRoot value="true" />
@@ -18,10 +18,11 @@
         </processorPath>
         <module name="springsecurity-03-login-page" />
         <module name="springsecurity-07-code-permission" />
-        <module name="springsecurity-06-role-permission" />
-        <module name="springsecurity-04-captcha-login" />
+        <module name="springsecurity-09-login-api-jwt" />
         <module name="springsecurity-08-login-api" />
         <module name="springsecurity-05-login-info" />
+        <module name="springsecurity-06-role-permission" />
+        <module name="springsecurity-04-captcha-login" />
       </profile>
     </annotationProcessing>
   </component>
@@ -35,6 +36,7 @@
       <module name="springsecurity-06-role-permission" options="-parameters" />
       <module name="springsecurity-07-code-permission" options="-parameters" />
       <module name="springsecurity-08-login-api" options="-parameters" />
+      <module name="springsecurity-09-login-api-jwt" options="-parameters" />
     </option>
   </component>
 </project>

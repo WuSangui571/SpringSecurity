@@ -9,5 +9,6 @@
     <file url="file://$PROJECT_DIR$/springsecurity-06-role-permission/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/springsecurity-07-code-permission/src/main/java" charset="UTF-8" />
     <file url="file://$PROJECT_DIR$/springsecurity-08-login-api/src/main/java" charset="UTF-8" />
+    <file url="file://$PROJECT_DIR$/springsecurity-09-login-api-jwt/src/main/java" charset="UTF-8" />
   </component>
 </project>

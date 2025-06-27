@@ -4,6 +4,7 @@
     <modules>
       <module fileurl="file://$PROJECT_DIR$/SpringSecurity.iml" filepath="$PROJECT_DIR$/SpringSecurity.iml" />
       <module fileurl="file://$PROJECT_DIR$/springsecurity-08-front/springsecurity-08-front.iml" filepath="$PROJECT_DIR$/springsecurity-08-front/springsecurity-08-front.iml" />
+      <module fileurl="file://$PROJECT_DIR$/springsecurity-09-front/springsecurity-09-front.iml" filepath="$PROJECT_DIR$/springsecurity-09-front/springsecurity-09-front.iml" />
     </modules>
   </component>
 </project>
