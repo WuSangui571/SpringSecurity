@@ -13,21 +13,52 @@
 </body>
 <script type="text/javascript">
     function logout(){
-        axios.get("http://localhost:8080/user/logout").then((resp) =>{
-            console.log(resp.data);
-        }).catch((error) =>{
-            console.log(error);
-        }).finally((e) =>{
-            console.log(e);
+        // axios.get("http://localhost:8080/user/logout").then((resp) =>{
+        //     console.log(resp.data);
+        // }).catch((error) =>{
+        //     console.log(error);
+        // }).finally((e) =>{
+        //     console.log(e);
+        // })
+
+        // 获取我们之前在 sessionStorage 存入的 JWT
+        let jwt = window.sessionStorage.getItem("jwt");
+
+        // 采用配置方式，请求后端，可以带入我们的 JWT
+        axios({
+            method: 'get',
+            url: 'http://localhost:8080/user/logout',
+            // 设置相应类型是 json
+            responseType: 'json',
+            // 这里自定义请求头，放入我们的 jwt,后续也不用这么写，因为它太重复了，每个请求都要怎么写，后续会使用 axios
+            headers: {'jwt': jwt},
+        }).then((resp) =>{
+            console.log(resp)
         })
     }
     function getUserInfo(){
-        axios.get("http://localhost:8080/userInfo").then((resp) =>{
+        // 这是直接调用方法，请求后端，我们不采用这种方式请求了，这种方式请求，无法带入我们的 JWT
+        /*axios.get("http://localhost:8080/userInfo").then((resp) =>{
             console.log(resp.data);
         }).catch((error) =>{
             console.log(error);
         }).finally((e) =>{
             console.log(e);
+        })*/
+
+        // 获取我们之前在 sessionStorage 存入的 JWT
+        let jwt = window.sessionStorage.getItem("jwt");
+
+        // 采用配置方式，请求后端，可以带入我们的 JWT
+        axios({
+            method: 'get',
+            url: 'http://localhost:8080/userInfo',
+            // 设置相应类型是 json
+            responseType: 'json',
+            // 这里自定义请求头，放入我们的 jwt,后续也不用这么写，因为它太重复了，每个请求都要怎么写，后续会使用 axios
+            headers: {'jwt': jwt},
+        }).then((resp) =>{
+            console.log(resp)
         })
     }
 </script>

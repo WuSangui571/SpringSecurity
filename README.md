@@ -1789,7 +1789,7 @@ KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30
 ```json
 {
   "number": "1234567890",
-  "name": "cat",
+  "name": "sangui",
   "phone": "13700000000"
 }
 ```
@@ -1825,7 +1825,7 @@ KMUFsIDTnFmyG3nMiGM6H9FNFUROf3wh7SmqJp-QV30
 我在这里简单写了一个方法，模拟我的的生成 JWT：
 
 ```java
-// 在 Test 注解里简单模拟 jwt 的生成
+// 在 Test 注解里简单模拟 JWT 的生成
 @Test
 void testJwt() throws Exception {
     // 这里是用户自己选择的
@@ -1847,12 +1847,12 @@ void testJwt() throws Exception {
     // 假设这里的 HMACSHA256 方法就是我们的 HMAC SHA256 加密算法。
     String signature  = HMACSHA256(headerEncoded   + "." + payloadEncoded ,secret);
 
-    // 这就是最终的 jwt 字符串了
+    // 这就是最终的 JWT 字符串了
     String jwt  = headerEncoded   + "." +  payloadEncoded  + "." + signature;
 }
 ```
 
-这里还得额外写 base64UrlEncode 方法，HMACSHA256 方法，我没有写。当然，以后不用这么复杂，有开源的库早就帮我们写好了：
+这里我只是简单写下整个 JWT 字符串生成的过程，全写的话，还得额外写 base64UrlEncode 方法，HMACSHA256 方法，我没有写。当然，以后不用这么复杂，有开源的库早就帮我们写好了：
 
 ```xml
 <!-- https://mvnrepository.com/artifact/com.auth0/java-jwt -->
@@ -1897,15 +1897,15 @@ import java.util.Map;
  * @Version: 1.0
  */
 public class JwtUtil {
-    // 密钥不能被别人知道，密钥尽量复杂点
-    public static final String SECRET = "sangui is MY sUPERhEROOO000OOOO!!asdas@#@#`$!@#4!@%!@#/^/&.(*@33^!,23@#.!1@#,$%^#$%";
+    // 密钥不能被别人知道
+    public static final String SECRET = "sangui is MY sUPERhEROOOOOOO!!@#@#`$!@#!@%/^/&.(*^!,@#.!@#,$%^#$%";
 
     /**
      * 生成 JWT 字符串
      * @param userJson 由 user 对象的转化的 json 字符串
      * @return JWT 字符串
      */
-    public String createToken(String userJson) {
+    public static String createToken(String userJson) {
         // 组装头数据
         Map<String, Object> header = new HashMap<>();
         header.put("alg", "HS256");
@@ -1924,7 +1924,7 @@ public class JwtUtil {
      * @param token JWT 字符串
      * @return true 代表 JWT 没有被篡改过，false 代表 JWT 被篡改过
      */
-    public Boolean verifyToken(String token) {
+    public static Boolean verifyToken(String token) {
         try {
             // 使用秘钥创建一个验证对象
             JWTVerifier jwtVerifier = JWT.require(Algorithm.HMAC256(SECRET)).build();
@@ -1940,9 +1940,9 @@ public class JwtUtil {
     /**
      * 解析 JWT 中的负载数据
      * @param token JWT 字符串
-     * @return
+     * @return 解析 JWT，然后返回数据
      */
-    public String parseToken(String token) {
+    public static String parseToken(String token) {
         try {
             // 使用秘钥创建一个解析对象
             JWTVerifier jwtVerifier = JWT.require(Algorithm.HMAC256(SECRET)).build();
@@ -1955,6 +1955,377 @@ public class JwtUtil {
             throw new RuntimeException(e);
         }
     }
+
 }
 ```
 
+现在，我们回顾下上一个章节我们遇到的问题，在上一个章节中，我们请求 `/user/login` 接口并且登录成功了，之后我们方法项目中的 `/userInfo` 接口，此时又提示我们需要重新登录。整个流程其实是：
+
+Nginx（HTML） --> axios 发送请求 --> Tomcat （SpringBoot web 项目）
+
+根本原因是：我们的项目是前后端分离的，无法使用 cookie 中的 jsessionId 和 后端的 session 保持登录状态，另外后端我们现在也禁用了 session，没有保持登录状态，导致登录之后，访问其他接口的时候，又需要提示登录。
+
+此时我们就使用这一章节提出的 JWT 技术。现在整个流程是：
+
+前端发送登录请求 --> 后端验证（成功）-->后端 生成 JWT ，并将其写入 Redis 中（还要在 SpringSecurity 上下文中放入认证信息） --> 后端同时将这个生成的 JWT 返回给前端，前端进行存储 --> 下次前端发送请求后，都带着这个 JWT --> 后端验证这个JWT --> 将这个 JWT 与在 Redis 中的 JWT 对比 --> 若验证成功，将请求后的响应信息返回给前端
+
+现在我们开始写程序：
+
+1. 引入 Redis 依赖（版本由 SpringBoot 控制）：
+
+   ```xml
+   <!-- https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-data-redis -->
+   <dependency>
+       <groupId>org.springframework.boot</groupId>
+       <artifactId>spring-boot-starter-data-redis</artifactId>
+   </dependency>
+   ```
+
+   ```yaml
+   spring:
+     data:
+       redis:
+         host: localhost
+         port: 6379
+         database: 0
+   ```
+
+   
+
+2. 后端 生成 JWT ，并将其写入 Redis 中：
+
+   ```java
+   public class MyAuthenticationSuccessHandler implements AuthenticationSuccessHandler {
+       // Redis 的 key 命名规范：项目名:模块名:功能名[:唯一业务参数]
+       public static final String REDIS_TOKEN_KEY = "springsecurity:user:token";
+   
+       // 注入 RedisTemplate，就可以使用 Redis 的服务了
+       @Resource
+       private RedisTemplate<String,Object> redisTemplate;
+   
+       @Override
+       public void onAuthenticationSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+           // 在这里生成 JWT (token)
+           // 获取 user 对象
+           TUser tUser = (TUser) authentication.getPrincipal();
+           // 转化为 json 对象
+           String tUserJson = new ObjectMapper().writeValueAsString(tUser);
+           // 生成 JWT
+           String jwt = JwtUtil.createToken(tUserJson);
+   
+           // 将生成的 JWT 放入 Redis
+           redisTemplate.opsForHash().put(REDIS_TOKEN_KEY,tUser.getId(),jwt);
+   
+   
+           // 这里将生成的 jwt 返回给前端
+           R result = R.ok("登录成功",jwt);
+           String json = new ObjectMapper().writeValueAsString(result);
+           response.setContentType("application/json;charset=UTF-8");
+           response.getWriter().write(json);
+       }
+   }
+   ```
+
+3. 再在前端存储这个 JWT
+
+   ```js
+   function login(){
+       let username = document.getElementById('username').value;
+       let password = document.getElementById('password').value;
+   
+       let formData = new FormData();
+       formData.append('username', username);
+       formData.append('password', password);
+   
+       axios.post('http://localhost:8080/user/login', formData).then((response) =>{
+           if (response.data.code === 200){
+               // 在这里放入 JWT
+               window.sessionStorage.setItem("jwt",response.data.data);
+               window.location.href = 'welcome.html';
+           }else {
+               alert(response.data.msg);
+           }
+       })
+       .catch((error) =>{
+           console.log(error);
+       });
+   }
+   ```
+
+   sessionStorage 浏览器对象，在 js 中可以直接使用；（会话存储） 
+
+   localStorage 浏览器对象，在 js 中可以直接使用；（本地存储）
+
+   从安全角色考虑，建议使用sessionStorage；
+
+   它们两者的区别：
+
+   + sessionStorage 只在一个页面有效（有效范围很窄），换一个页面就失效了，就读不到你放的这个token数据了
+
+   + localStorage 在整个浏览器都有效（有效范围很广），重启浏览器也有效，都能拿到你放的这个token数据；
+
+   使用方法：
+
+   ```js
+   window.sessionStorage.setItem("loginToken", response.data.data)
+   window.localStorage.setItem("loginToken", response.data.data)
+   ```
+
+4. 设置 Redis 的乱码问题
+
+   我们的 Redis 在可视化程序中，看到是乱码，但它的功能性并不成问题，还是能放能取的，为了可视化方便，我们决定修复他的乱码。原因是 Spring-Data-Redis在操作 Redis 的时候，默认 key 和 value 都是采用 jdk 序列化之后再写入 Redis 的：
+
+   ```
+   KEY:  \xAC\xED\x00\x05t\x00\x013
+   VALUE: \xAC\xED\x00\x05t\x02\x0CeyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJpZCI6MywibG9naW5BY3QiOiJ6aGFuZ3FpIiwibG9naW5Qd2QiOiIkMmEkMTAkbnQ5Q1pVVlFlQ2xrV05INng2N1BMT244Sko5UHU2S05SbmZHQm1JandsUU9kcGhRRTBLV2EiLCJuYW1lIjoi5byg55CqIiwicGhvbmUiOiIxMzYyMzYyMzIzIiwiZW1haWwiOiJ6aGFuZ3FpQHFxLmNvbSIsImFjY291bnROb0V4cGlyZWQiOjEsImNyZWRlbnRpYWxzTm9FeHBpcmVkIjoxLCJhY2NvdW50Tm9Mb2NrZWQiOjEsImFjY291bnRFbmFibGVkIjoxLCJjcmVhdGVUaW1lIjoxNjc3NzI4MjU0MDAwLCJlZGl0VGltZSI6MTY4NDc3MjQ2MjAwMCwibGFzdExvZ2luVGltZSI6MTcwMjMwMDA0ODAwMH0.B1NLw5pZX3WeDCN3H8qDCs9LHnzIgkJzKlYdBfwAcyw
+   ```
+
+   其实虽然看起来像乱码一样，但是你去读取redis的时候，拿到的值依然是正常的；所以这个像乱码的一样的效果，我们可以不处理，是没有任何问题的；但是我们平时开发维修项目的时候，阅读起来不太方便，所以还是建议你处理一下。修改方式如下：
+
+   ```java
+   /**
+    * @author sangui
+    */
+   @SpringBootApplication
+   @MapperScan("com.sangui.springsecurity.mapper")
+   public class JwtApplication implements CommandLineRunner {
+   	@Resource
+   	private RedisTemplate<String,Object> redisTemplate;
+   
+   	/**
+   	 * 该 run 方法只在 SpringBoot 项目启动之后执行 1 次（就 1 次）
+   	 * 所有通常会在这个方法中写一些初始化工作
+   	 * @param args 参数
+   	 * @throws Exception 异常
+   	 */
+   	@Override
+   	public void run(String... args) throws Exception {
+   		// 这里我们配置 Redis 防止乱码的问题
+   		// 设置 Redis 的 key 采用 string 进行序列化
+   		redisTemplate.setKeySerializer(RedisSerializer.string());
+   		// 设置 Redis 的 Hashkey 采用 string 进行序列化
+   		redisTemplate.setHashKeySerializer(RedisSerializer.string());
+   		// 设置 Redis 的 HashValue 采用 string 进行序列化
+   		redisTemplate.setHashValueSerializer(RedisSerializer.string());
+   	}
+   
+   	public static void main(String[] args) {
+   		SpringApplication.run(JwtApplication.class, args);
+   	}
+   }
+   ```
+
+5. 修改前端代码，是每次请求都带有这个 JWT
+
+   我们选择把这个 JWT 放入我们的请求头里
+
+   ```js
+   function getUserInfo(){
+       // 这是直接调用方法，请求后端，我们不采用这种方式请求了，这种方式请求，无法带入我们的 JWT
+       /*axios.get("http://localhost:8080/userInfo").then((resp) =>{
+           console.log(resp.data);
+       }).catch((error) =>{
+           console.log(error);
+       }).finally((e) =>{
+           console.log(e);
+       })*/
+   
+       // 获取我们之前在 sessionStorage 存入的 JWT
+       let jwt = window.sessionStorage.getItem("jwt");
+   
+       // 采用配置方式，请求后端，可以带入我们的 JWT
+       axios({
+           method: 'get',
+           url: 'http://localhost:8080/userInfo',
+           // 设置相应类型是 json
+           responseType: 'json',
+           // 这里自定义请求头，放入我们的 jwt,后续也不用这么写，因为它太重复了，每个请求都要怎么写，后续会使用 axios 
+           headers: {'jwt': jwt},
+       }).then((resp) =>{
+           console.log(resp)
+       })
+   }
+   ```
+
+​	这是其中一个前端请求的例子
+
+6. 在后端设立过滤器
+
+   由于我们需要在后端验证前端这个传入的 JWT，所以需要进行检验，但是，不能每一个 Controller 中的方法都写一遍验证，我们选择使用过滤器，就不用重复写了。
+
+   ```java
+   @Component
+   public class JwtFilter extends OncePerRequestFilter {
+       @Resource
+       private RedisTemplate<String,Object> redisTemplate;
+   
+       @Override
+       protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain) throws ServletException, IOException {
+           response.setContentType("application/json;charset=UTF-8");
+           
+           // 登录接口不需要进行验证，直接通过
+           String requestUri = request.getRequestURI();
+           if ("/user/login".equals(requestUri)) {
+               filterChain.doFilter(request, response);
+           }else {
+               // 获取请求头的 JWT
+               String jwt = request.getHeader("jwt");
+               // 开始验证 JWT
+               // 若 JWT 没有值
+               if (!StringUtils.hasLength(jwt)) {
+                   R result = new R(901,"请求 jwt 为空！",null);
+                   String json = new ObjectMapper().writeValueAsString(result);
+                   response.getWriter().write(json);
+   
+               }else {
+                   //  JWT 是否被篡改过、
+                   boolean flag = true;
+                   try {
+                       flag = !JwtUtil.verifyToken(jwt);
+                   }catch (Exception e){
+                       e.printStackTrace();
+                   }
+                   if (flag) {
+                       R result = new R(902,"请求 jwt 非法！",null);
+                       String json = new ObjectMapper().writeValueAsString(result);
+                       response.getWriter().write(json);
+                   } else {
+                       // 获取 tUserId
+                       String tUserJson = JwtUtil.parseToken(jwt);
+                       TUser tUser = new ObjectMapper().readValue(tUserJson, TUser.class);
+                       System.out.println(tUser);
+                       Integer tUserId = tUser.getId();
+   
+                       // 拿 Redis 中的 JWT
+                       String redisJwt = (String) redisTemplate.opsForHash().get(MyAuthenticationSuccessHandler.REDIS_TOKEN_KEY,tUserId.toString());
+                       // 若前台提供的 JWT 与 Redis 中的 JWT 不匹配
+                       if (!jwt.equals(redisJwt)) {
+                           R result = new R(903,"请求 jwt 不匹配！",null);
+                           String json = new ObjectMapper().writeValueAsString(result);
+                           response.getWriter().write(json);
+                       }else {
+                           // 验证通过！
+                           // 将我们的信息传入 SpringSecurity 的上下文里。放入 Authentication 的一个实现类：UsernamePasswordAuthenticationToken
+                           // 这一步很重要，如果不放入，即使你通过了这个 JWT 过滤器验证，也会被之后 SpringSecurity 框架后续别的过滤器过滤为匿名请求
+                           SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(tUser, null, AuthorityUtils.NO_AUTHORITIES));
+                           filterChain.doFilter(request, response);
+                       }
+                   }
+               }
+           }
+       }
+   }
+   ```
+
+   随后，别忘记在 SpringSecurity 配置类中加入我们的 Filter：
+
+   ```java
+   // 将我们的 jwt 验证过滤器加入
+   .addFilterBefore(jwtFilter, LogoutFilter.class)
+   ```
+
+   至此，我们的基于 JWT 的验证的基本逻辑就完成了，但是呢，还是发现了一些小问题。比如，后端 SpringBoot项目重启，然后再再访问 /userInfo 接口），我们发现，使用之前生成的 JWT，依然可以直接不用登录就可以访问各个接口；正常情况下，重启项目后，原来 web 项目的 session 会失效，那么 JWT应该也要失效；为什么？因为 JWT 无状态，重启项目后，JWT 并没有失效，依然可以访问后端的接口；原因是，你重启后端 SpringBoot 项目后，前端sessionStorage 中 JWT 没有失效，后端 Redis 中的 JWT 也没有失效。
+
+   有三种解决办法：
+
+   1. 把 JWT 存入 Redis 中并设置一个过期时间，到期后 JWT 自动失效；（30分钟失效）
+
+      但这种方法及时性不好，若重启项目之后不到半小时，还是可以不登录访问
+
+   2. 实现一个退出功能，用户点击退出登录，让 JWT 失效；
+
+      这种方法也有局限性，用户如果不点击退出，就还是登录
+
+   3. 服务关闭/重启，删除 Redis 的所有 JWT；
+
+      可行，利用 Spring 框架的一个监听器：ApplicationListener<ContextClosedEvent>
+
+      ```java
+      @Component
+      public class ShutdownListener implements ApplicationListener<ContextClosedEvent> {
+          @Resource
+          private RedisTemplate<String,Object> redisTemplate;
+      
+          /**
+           * 服务关闭/重启，删除 Redis 的所有 JWT
+           * @param event the event to respond to
+           */
+          @Override
+          public void onApplicationEvent(ContextClosedEvent event) {
+              //System.out.println("应用 is shutting down...");
+              // 删除代码
+              redisTemplate.delete(MyAuthenticationSuccessHandler.REDIS_TOKEN_KEY);
+          }
+      }
+      ```
+
+   至此，我们的项目就彻底结束了，现在再次梳理下我们的程序：
+
+   1. 通过 Vue（html）的 axios 发送请求访问登录接口：http://localhost:8080/user/login，传上账号密码参数
+
+   2. SpringSecurity 框架处理 /user/login 这个登录请求，具体处理是 UsernamePasswordAuthenticationFilter 类接收账号密码，然后调用 UserServiceImpl中的方法
+
+   3. loadUserByUsername(String username) --> 查询数据库，返回实现了 UserDetails 接口的 TUser 对象，然后回到 SpringSecurity  框架中验证4个状态值和比较密码，状态值都是 true，密码也匹配，那么就登录成功
+
+   4. 登录成功了就会调用登录成功的 AppAuthenticationSuccessHandler，该 handler 生成 JWT，然后 JWT 写入 Redis，然后把 JWT 返回到前端；如果是登录失败就调用 AppAuthenticationFailureHandler，该 handler 就返回 R 失败的 json 信息对象
+
+   5. 前端拿到 JWT 后，把 JWT 要存储在前端（sessionStorage、localStorage），后续在请求后端的每一个接口时，都会在请求头 header 中带上这个 JWT
+
+   6. 后端接口接收到前端的请求时，首先都会被 JWT 的验证过滤器 JwtFilter 拦截，拦截里面会验证 JWT 是否合法（是否是空、有没有篡改，和 Redis 是否相等），验证未通过就直接给前端返回一个 R 对象的 json，验证通过了，把 SpringSecurity  上下文中设置用户认证信息，表示该 JWT 的用户是登录过的，接下来就可以访问具体的后端 Controller 接口了，接口里面执行具体的业务，然后 Controller  接口返回 json 给前端，前端进行数据显示
+
+   7. 如果项目重启了，那么之前登录的 JWT 都要失效，在项目重启时，使用 Spring 的事件监听，把之前登录的 JWT 全部从 Redis  中删除
+
+   8. 补充：如果访问退出接口，那就是访问 /logout 接口，这个接口是 SpringSecurity  框架提供的，我们不需要写 Controller，退出的具体操作逻辑是 SpringSecurity  自己实现的（内部把 SpringSecurity 上下文的登录认证信息 Authentication 清除了），退出成功了会调用 AppLogoutSuccessHandler这个 handler，在 handler 中我们要把 Redis 中的登录 JWT 删除，然后再返回一个 R 对象的 json 告诉前端退出成功就可以了
+
+      ```java
+      @Component
+      public class MyLogoutSuccessHandler implements LogoutSuccessHandler {
+          @Resource
+          private RedisTemplate<String,Object> redisTemplate;
+      
+          @Override
+          public void onLogoutSuccess(HttpServletRequest request, HttpServletResponse response, Authentication authentication) throws IOException, ServletException {
+              // 退出成功后在 Redis 中删除对应的 tUser 的 id 的数据
+              TUser tUser = (TUser) authentication.getPrincipal();
+              redisTemplate.opsForHash().delete(MyAuthenticationSuccessHandler.REDIS_TOKEN_KEY,tUser.getId());
+      
+              R result = R.ok("退出成功",authentication);
+      
+              String json = new ObjectMapper().writeValueAsString(result);
+              response.setContentType("application/json;charset=UTF-8");
+      
+              response.getWriter().write(json);
+          }
+      }
+      ```
+
+      ```js
+      function logout(){
+          // axios.get("http://localhost:8080/user/logout").then((resp) =>{
+          //     console.log(resp.data);
+          // }).catch((error) =>{
+          //     console.log(error);
+          // }).finally((e) =>{
+          //     console.log(e);
+          // })
+      
+          // 获取我们之前在 sessionStorage 存入的 JWT
+          let jwt = window.sessionStorage.getItem("jwt");
+      
+          // 采用配置方式，请求后端，可以带入我们的 JWT
+          axios({
+              method: 'get',
+              url: 'http://localhost:8080/user/logout',
+              // 设置相应类型是 json
+              responseType: 'json',
+              // 这里自定义请求头，放入我们的 jwt,后续也不用这么写，因为它太重复了，每个请求都要怎么写，后续会使用 axios
+              headers: {'jwt': jwt},
+          }).then((resp) =>{
+              console.log(resp)
+          })
+      }
+      ```
+
+      
+
+​	

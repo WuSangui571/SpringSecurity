@@ -2,6 +2,7 @@ package com.sangui.springsecurity.config;
 
 
 import com.sangui.springsecurity.filter.CaptchaFilter;
+import com.sangui.springsecurity.filter.JwtFilter;
 import com.sangui.springsecurity.handler.MyAuthenticationFailHandler;
 import com.sangui.springsecurity.handler.MyAuthenticationSuccessHandler;
 import com.sangui.springsecurity.handler.MyLogoutSuccessHandler;
@@ -15,6 +16,8 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.authentication.logout.LogoutFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -42,6 +45,9 @@ public class SecurityConfig {
 
     @Resource
     CaptchaFilter captchaFilter;
+
+    @Resource
+    JwtFilter jwtFilter;
 
     // 新增 CorsConfigurationSource 对象到我们的容器中，之后在 securityFilterChain 的请求中使用
     @Bean
@@ -111,6 +117,10 @@ public class SecurityConfig {
 
                 // 将我们的验证码过滤器，放在这个接受用户账号密码的 filter 之前
                 //.addFilterBefore(captchaFilter, UsernamePasswordAuthenticationFilter.class)
+
+                // 将我们的 jwt 验证过滤器加入
+                .addFilterBefore(jwtFilter, LogoutFilter.class)
+
 
                 .csrf((csrf) ->{
                     // 禁用 csrf 跨站请求伪造。禁用之后，肯定不安全，有网络攻击的危险，后续加入 jwt 是可以防御的
