@@ -26,7 +26,7 @@
            LEFT JOIN t_user
                      ON t_user_role.user_id = t_user.id
     WHERE t_user.id = #{userId,jdbcType=INTEGER}
-      AND type = "button"
+      AND type = 'button'
   </select>
 
   <select id="selectByPrimaryKey" parameterType="java.lang.Integer" resultMap="BaseResultMap">

@@ -9,9 +9,92 @@
     <h1>欢迎登录!!</h1>
     <!--新增超链接,访问之前章节写的页面-->
     <a href="javascript:void(0)" onclick="getUserInfo()">获取用户信息</a>
-    <a href="javascript:void(0)" onclick="logout()">退出登录</a>
+    <a href="javascript:void(0)" onclick="logout()">退出登录</a><br>
+    <!--
+    举例，用户 id 为 3 的用户，他叫 zhangqi，拥有以下权限：
+        线索管理-列表 clueList
+        线索管理-录入 clueInput
+        线索管理-编辑 clueEdit
+        线索管理-查看 clueView
+    没有以下权限：
+        线索管理-删除 clueDel
+        线索管理-导出 clueExport
+    -->
+    <a href="javascript:void(0)" onclick="clueList()">线索管理-列表</a>
+    <a href="javascript:void(0)" onclick="clueInput()">线索管理-录入</a>
+    <a href="javascript:void(0)" onclick="clueEdit()">线索管理-编辑</a>
+    <a href="javascript:void(0)" onclick="clueView()">线索管理-列表</a><br>
+    <a href="javascript:void(0)" onclick="clueDel()">线索管理-删除</a>
+    <a href="javascript:void(0)" onclick="clueExport()">线索管理-导出</a>
 </body>
 <script type="text/javascript">
+    function clueList(){
+        let jwt = window.sessionStorage.getItem("jwt");
+        axios({
+            method: 'get',
+            url: 'http://localhost:8080/api/clue/list',
+            responseType: 'json',
+            headers: {'jwt': jwt},
+        }).then((resp) =>{
+            console.log(resp)
+        })
+    }
+    function clueInput(){
+        let jwt = window.sessionStorage.getItem("jwt");
+        axios({
+            method: 'get',
+            url: 'http://localhost:8080/api/clue/input',
+            responseType: 'json',
+            headers: {'jwt': jwt},
+        }).then((resp) =>{
+            console.log(resp)
+        })
+    }
+    function clueEdit(){
+        let jwt = window.sessionStorage.getItem("jwt");
+        axios({
+            method: 'get',
+            url: 'http://localhost:8080/api/clue/edit',
+            responseType: 'json',
+            headers: {'jwt': jwt},
+        }).then((resp) =>{
+            console.log(resp)
+        })
+    }
+    function clueView(){
+        let jwt = window.sessionStorage.getItem("jwt");
+        axios({
+            method: 'get',
+            url: 'http://localhost:8080/api/clue/view',
+            responseType: 'json',
+            headers: {'jwt': jwt},
+        }).then((resp) =>{
+            console.log(resp)
+        })
+    }
+    function clueDel(){
+        let jwt = window.sessionStorage.getItem("jwt");
+        axios({
+            method: 'get',
+            url: 'http://localhost:8080/api/clue/del',
+            responseType: 'json',
+            headers: {'jwt': jwt},
+        }).then((resp) =>{
+            console.log(resp)
+        })
+    }
+    function clueExport(){
+        let jwt = window.sessionStorage.getItem("jwt");
+        axios({
+            method: 'get',
+            url: 'http://localhost:8080/api/clue/xxyy',
+            responseType: 'json',
+            headers: {'jwt': jwt},
+        }).then((resp) =>{
+            console.log(resp)
+        })
+    }
+
     function logout(){
         // axios.get("http://localhost:8080/user/logout").then((resp) =>{
         //     console.log(resp.data);

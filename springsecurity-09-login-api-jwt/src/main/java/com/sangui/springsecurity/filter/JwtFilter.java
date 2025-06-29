@@ -68,7 +68,7 @@ public class JwtFilter extends OncePerRequestFilter {
                     // 获取 tUserId
                     String tUserJson = JwtUtil.parseToken(jwt);
                     TUser tUser = new ObjectMapper().readValue(tUserJson, TUser.class);
-                    System.out.println(tUser);
+                    //System.out.println(tUser);
                     Integer tUserId = tUser.getId();
 
                     // 拿 Redis 中的 JWT
@@ -82,7 +82,10 @@ public class JwtFilter extends OncePerRequestFilter {
                         // 验证通过！
                         // 将我们的信息传入 SpringSecurity 的上下文里。放入 Authentication 的一个实现类：UsernamePasswordAuthenticationToken
                         // 这一步很重要，如果不放入，即使你通过了这个 JWT 过滤器验证，也会被之后 SpringSecurity 框架后续别的过滤器过滤为匿名请求
-                        SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(tUser, null, AuthorityUtils.NO_AUTHORITIES));
+                        //SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(tUser, null, tUser.getAuthorities()));
+                        UsernamePasswordAuthenticationToken authenticationToken
+                                = new UsernamePasswordAuthenticationToken(tUser, null, tUser.getAuthorities());
+                        SecurityContextHolder.getContext().setAuthentication(authenticationToken);
                         filterChain.doFilter(request, response);
                     }
                 }

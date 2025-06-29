@@ -4,12 +4,15 @@ package com.sangui.springsecurity.service.impl;
 import com.sangui.springsecurity.mapper.TPermissionMapper;
 import com.sangui.springsecurity.mapper.TRoleMapper;
 import com.sangui.springsecurity.mapper.TUserMapper;
+import com.sangui.springsecurity.model.TPermission;
 import com.sangui.springsecurity.model.TUser;
 import com.sangui.springsecurity.service.UserService;
 import jakarta.annotation.Resource;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
+
+import java.util.List;
 
 /**
  * @Author: sangui
@@ -61,9 +64,10 @@ public class UserServiceImpl implements UserService {
 //        // 通过 set 方法写入我们的权限列表这个属性
 //        tUser.setTRoleList(tRoleList);
 
-//        // 查询用户的权限 code 列表（一个用户可能有多个权限 code）
-//        List<TPermission> tPermissionList = tPermissionMapper.selectByUserId(tUser.getId());
-//        tUser.setTPermissionList(tPermissionList);
+        // 这是基于资源的权限管理
+        // 查询用户的权限 code 列表（一个用户可能有多个权限 code）
+        List<TPermission> tPermissionList = tPermissionMapper.selectByUserId(tUser.getId());
+        tUser.setTPermissionList(tPermissionList);
 
         // 这里返回我们自己的 tUser 对象
         return tUser;

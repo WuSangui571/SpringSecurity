@@ -1,6 +1,7 @@
 学习SpringSecurity
 
 + 开始时间：2025-06-20
++ 结束时间：2025-06-29
 
 ### 第 1 章 SpringSecurity 基础
 
@@ -2318,7 +2319,7 @@ Nginx（HTML） --> axios 发送请求 --> Tomcat （SpringBoot web 项目）
               url: 'http://localhost:8080/user/logout',
               // 设置相应类型是 json
               responseType: 'json',
-              // 这里自定义请求头，放入我们的 jwt,后续也不用这么写，因为它太重复了，每个请求都要怎么写，后续会使用 axios
+              // 这里自定义请求头，放入我们的 jwt,后续也不用这么写，因为它太重复了，每个请求都要怎么写，后续会使用 axios 过滤器
               headers: {'jwt': jwt},
           }).then((resp) =>{
               console.log(resp)
@@ -2326,6 +2327,118 @@ Nginx（HTML） --> axios 发送请求 --> Tomcat （SpringBoot web 项目）
       }
       ```
 
-      
+
+   下面，我再说一下在使用 JWT 的情况下，使用我们之前章节学过的权限管理。我们使用基于资源的权限管理，它的基本流程步骤是：
+
+   1. 需要有一个用户
+   2. 给用户配置权限标识符
+   3. 给每个权限标识符配置能访问的资源
+
+   我们直接使用之前章节的代码，现在只需要前端添加代码：
+
+   ```js
+   function clueList(){
+       let jwt = window.sessionStorage.getItem("jwt");
+       axios({
+           method: 'get',
+           url: 'http://localhost:8080/api/clue/list',
+           responseType: 'json',
+           headers: {'jwt': jwt},
+       }).then((resp) =>{
+           console.log(resp)
+       })
+   }
+   function clueInput(){
+       let jwt = window.sessionStorage.getItem("jwt");
+       axios({
+           method: 'get',
+           url: 'http://localhost:8080/api/clue/input',
+           responseType: 'json',
+           headers: {'jwt': jwt},
+       }).then((resp) =>{
+           console.log(resp)
+       })
+   }
+   function clueEdit(){
+       let jwt = window.sessionStorage.getItem("jwt");
+       axios({
+           method: 'get',
+           url: 'http://localhost:8080/api/clue/edit',
+           responseType: 'json',
+           headers: {'jwt': jwt},
+       }).then((resp) =>{
+           console.log(resp)
+       })
+   }
+   function clueView(){
+       let jwt = window.sessionStorage.getItem("jwt");
+       axios({
+           method: 'get',
+           url: 'http://localhost:8080/api/clue/view',
+           responseType: 'json',
+           headers: {'jwt': jwt},
+       }).then((resp) =>{
+           console.log(resp)
+       })
+   }
+   function clueDel(){
+       let jwt = window.sessionStorage.getItem("jwt");
+       axios({
+           method: 'get',
+           url: 'http://localhost:8080/api/clue/del',
+           responseType: 'json',
+           headers: {'jwt': jwt},
+       }).then((resp) =>{
+           console.log(resp)
+       })
+   }
+   function clueExport(){
+       let jwt = window.sessionStorage.getItem("jwt");
+       axios({
+           method: 'get',
+           url: 'http://localhost:8080/api/clue/xxyy',
+           responseType: 'json',
+           headers: {'jwt': jwt},
+       }).then((resp) =>{
+           console.log(resp)
+       })
+   }
+   ```
+
+   之前章节中我们权限不足时，会使用自己定制的 403 页面，但现在我们是前后端分离的项目，我们后端返回给前端的都是 json ，这样我们在 Security 配置类中，我们写上权限不足时跳转的 Handler：
+
+   ```java
+   // 无权限时执行这个 Handler
+   .exceptionHandling((exceptionHandler) ->{
+       exceptionHandler.accessDeniedHandler(myAccessDeniedHandler);
+   })
+   ```
+
+   我们这个 Handler 具体写的内容是：
+
+   ```java
+   @Component
+   public class MyAccessDeniedHandler implements AccessDeniedHandler{
+       @Override
+       public void handle(HttpServletRequest request, HttpServletResponse response, AccessDeniedException accessDeniedException) throws IOException, ServletException {
+           // 返回的 result 的结果码是 403,信息是登录失败,并返回异常信息
+           R result = R.fail(403,"权限不足",null);
+   
+           String json = new ObjectMapper().writeValueAsString(result);
+           response.setContentType("application/json;charset=UTF-8");
+   
+           response.getWriter().write(json);
+       }
+   }
+   ```
+
+   最后，还要在 JwtFilter 类里注掉之前的无权限代码，改为 tUser 类里的权限信息
+
+   ```java
+   // SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(tUser, null, AuthorityUtils.NO_AUTHORITIES));
+   SecurityContextHolder.getContext().setAuthentication(new UsernamePasswordAuthenticationToken(tUser, null, tUser.getAuthorities()));
+   ```
+
+   
 
 ​	

@@ -4,9 +4,11 @@ import com.fasterxml.jackson.annotation.JsonFormat;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
 import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 
 import java.io.Serializable;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Date;
 import java.util.List;
@@ -40,7 +42,13 @@ public class TUser implements Serializable, UserDetails {
     @JsonIgnore
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of();
+        Collection<GrantedAuthority> authorities = new ArrayList<>();
+        // 循环放入我们的 TPermission List 里的对象的 code 值
+        for (TPermission tPermission : this.tPermissionList){
+            // 这里放入具体的 code 值
+            authorities.add(new SimpleGrantedAuthority(tPermission.getCode()));
+        }
+        return authorities;
     }
 
     @JsonIgnore

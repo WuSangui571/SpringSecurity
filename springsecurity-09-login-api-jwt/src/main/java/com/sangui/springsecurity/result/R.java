@@ -73,13 +73,24 @@ public class R {
     }
 
     /**
-     * 失败的对象(可写结果码和结果信息)
+     * 失败的对象(可写结果信息和结果类型数据)
      * @param msg 失败的结果信息
      * @param data 结果类型数据
      * @return R 对象
      */
     public static R fail(String msg,Object data) {
         return R.builder().code(500).msg(msg).data(data).build();
+    }
+
+    /**
+     * 失败的对象(可写结果码和结果信息和结果类型数据)
+     * @param code 失败的结果码
+     * @param msg 失败的结果信息
+     * @param data 结果类型数据
+     * @return R 对象
+     */
+    public static R fail(Integer code,String msg,Object data) {
+        return R.builder().code(code).msg(msg).data(data).build();
     }
 
 }

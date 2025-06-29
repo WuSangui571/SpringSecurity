@@ -3,6 +3,7 @@ package com.sangui.springsecurity.config;
 
 import com.sangui.springsecurity.filter.CaptchaFilter;
 import com.sangui.springsecurity.filter.JwtFilter;
+import com.sangui.springsecurity.handler.MyAccessDeniedHandler;
 import com.sangui.springsecurity.handler.MyAuthenticationFailHandler;
 import com.sangui.springsecurity.handler.MyAuthenticationSuccessHandler;
 import com.sangui.springsecurity.handler.MyLogoutSuccessHandler;
@@ -34,6 +35,8 @@ import java.util.Arrays;
 @Configuration
 @EnableMethodSecurity()
 public class SecurityConfig {
+    @Resource
+    MyAccessDeniedHandler myAccessDeniedHandler;
     @Resource
     MyLogoutSuccessHandler myLogoutSuccessHandler;
 
@@ -135,6 +138,11 @@ public class SecurityConfig {
                 .sessionManagement((sessionManagement) -> {
                     // 使用无状态策略
                     sessionManagement.sessionCreationPolicy(SessionCreationPolicy.STATELESS);
+                })
+
+                // 无权限时执行这个 Handler
+                .exceptionHandling((exceptionHandler) ->{
+                    exceptionHandler.accessDeniedHandler(myAccessDeniedHandler);
                 })
 
                 .build();
